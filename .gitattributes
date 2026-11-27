@@ -1,0 +1,2 @@
+# Preserve upstream package bytes and checksum provenance across platforms.
+vendor/tasks-vision/** -text -whitespace linguist-vendored=true

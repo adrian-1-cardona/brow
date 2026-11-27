@@ -1,0 +1,47 @@
+{
+  "name": "brow-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "assets": "node scripts/prepare-assets.mjs",
+    "postinstall": "npm run assets",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "predev": "npm run assets",
+    "prebuild": "npm run assets"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "file:vendor/tasks-vision",
+    "lucide-react": "0.468.0",
+    "next": "16.3.4",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "sharp": "0.34.5"
+  },
+  "overrides": {
+    "@vitest/pretty-format": "3.2.4",
+    "@vitest/utils": "3.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.5.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "esbuild": "0.27.7",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.2.10",
+    "typescript": "5.9.3",
+    "vite": "6.4.3",
+    "vitest": "3.2.4"
+  },
+  "engines": {
+    "node": ">=22.20.0",
+    "npm": ">=10"
+  }
+}
