@@ -163,7 +163,7 @@ export default function BrowStudio() {
             <BrowGlyph />
           </span>
           <span>
-            BROW<span className="brand-light">STUDIO</span>
+            Brow<span className="brand-light">Studio.exe</span>
           </span>
         </Link>
         <div className="header-actions">

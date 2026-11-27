@@ -31,10 +31,7 @@ export default function Modal({
       aria-label={title}
     >
       <div className="modal-heading">
-        <div>
-          <span className="eyebrow">BROW STUDIO</span>
-          <h2>{title}</h2>
-        </div>
+        <h2>{title}</h2>
         <button
           className="icon-button"
           onClick={onClose}
