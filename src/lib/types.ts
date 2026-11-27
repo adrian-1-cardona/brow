@@ -25,6 +25,7 @@ export const defaultCalibration = (): Calibration => ({
 export type Brow = {
   side: BrowSide;
   polygon: Point[];
+  sourcePolygon: Point[];
   origin: Point;
   axis: Point;
   normal: Point;

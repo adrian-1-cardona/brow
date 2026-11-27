@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyVerifiedPatches,
+  applyStylePreview,
   handNearBrows,
   lightLevel,
 } from "../../src/lib/render";
-import { pointInPolygon } from "../../src/lib/geometry";
+import { pointInPolygon, isProtected } from "../../src/lib/geometry";
 import { type Brow, type VerifiedPatch } from "../../src/lib/types";
 const brow: Brow = {
   side: "left",
@@ -12,6 +13,12 @@ const brow: Brow = {
   axis: { x: 1, y: 0 },
   normal: { x: 0, y: -1 },
   length: 100,
+  sourcePolygon: [
+    { x: 20, y: 38 },
+    { x: 120, y: 38 },
+    { x: 120, y: 69 },
+    { x: 20, y: 69 },
+  ],
   polygon: [
     { x: 20, y: 45 },
     { x: 120, y: 45 },
@@ -40,7 +47,75 @@ const patch: VerifiedPatch = {
   radius: 0.045,
   verified: true,
 };
-describe("conservative live result rendering", () => {
+describe("automatic virtual trim", () => {
+  it("changes live hair pixels without manual marks and preserves protected and non-brow pixels", () => {
+    const image = imageFixture(),
+      before = new Uint8ClampedArray(image.data);
+    const result = applyStylePreview(image, [brow]);
+    expect(result.obstructed).toBe(false);
+    expect(result.changed).toBeGreaterThan(40);
+    let changed = 0;
+    for (let y = 0; y < image.height; y++)
+      for (let x = 0; x < image.width; x++) {
+        const i = (y * image.width + x) * 4;
+        if (before[i] !== image.data[i]) {
+          changed++;
+          expect(isProtected({ x, y }, [brow], 0.8)).toBe(false);
+          expect(pointInPolygon({ x, y }, brow.sourcePolygon)).toBe(true);
+          expect(before[i]).toBe(25);
+        }
+        expect(image.data[i + 3]).toBe(before[i + 3]);
+      }
+    expect(result.changed).toBe(changed);
+  });
+  it("uses the current frame and changes the trim when the target outline changes", () => {
+    const a = imageFixture(),
+      b = imageFixture();
+    const thicker = {
+      ...brow,
+      polygon: brow.polygon.map((p) => ({
+        x: p.x,
+        y: p.y > 50 ? p.y + 6 : p.y,
+      })),
+    };
+    expect(applyStylePreview(a, [brow]).changed).toBeGreaterThan(
+      applyStylePreview(b, [thicker]).changed,
+    );
+    const fresh = imageFixture();
+    for (let i = 0; i < fresh.data.length; i += 4)
+      fresh.data.set([110, 90, 75], i);
+    const before = new Uint8ClampedArray(fresh.data);
+    expect(applyStylePreview(fresh, [brow])).toEqual({
+      changed: 0,
+      obstructed: false,
+    });
+    expect(fresh.data).toEqual(before);
+  });
+  it("uses the shaded skin beneath the brow for lower-edge edits", () => {
+    const image = imageFixture();
+    for (let y = 69; y < image.height; y++)
+      for (let x = 30; x < 130; x++)
+        image.data.set([105, 80, 65, 255], (y * image.width + x) * 4);
+    expect(applyStylePreview(image, [brow]).obstructed).toBe(false);
+    const red = image.data[(65 * image.width + 60) * 4];
+    expect(red).toBeGreaterThan(65);
+    expect(red).toBeLessThanOrEqual(105);
+  });
+  it("pauses without changing the frame when a dark obstruction crosses beneath the brow", () => {
+    const image = imageFixture();
+    for (let y = 69; y < 90; y++)
+      for (let x = 0; x < 20; x++)
+        image.data.set([20, 18, 15, 255], (y * 160 + x) * 4);
+    const before = new Uint8ClampedArray(image.data);
+    expect(applyStylePreview(image, [brow])).toEqual({
+      changed: 0,
+      obstructed: true,
+    });
+    expect(image.data).toEqual(before);
+  });
+});
+
+describe("optional verified touch-ups", () => {
   it("leaves the entire frame untouched without manual verification", () => {
     const image = imageFixture(),
       before = new Uint8ClampedArray(image.data);

@@ -15,6 +15,10 @@ export const distance = (a: Point, b: Point) =>
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export const EYE_INDICES = { left: [362, 263], right: [133, 33] } as const;
+export const BROW_INDICES = {
+  left: { upper: [336, 296, 334, 293, 300], lower: [285, 295, 282, 283, 276] },
+  right: { upper: [107, 66, 105, 63, 70], lower: [55, 65, 52, 53, 46] },
+} as const;
 
 export function pointInPolygon(p: Point, polygon: Point[]): boolean {
   let inside = false;
@@ -75,14 +79,14 @@ function makeBrow(
   width: number,
   height: number,
 ): Brow | null {
-  const indices = EYE_INDICES[side];
+  const indices = BROW_INDICES[side];
   const profile = BROW_PROFILES[style][side];
   const pixel = (i: number) => ({
     x: landmarks[i].x * width,
     y: landmarks[i].y * height,
   });
   if (
-    indices.some(
+    [...indices.upper, ...indices.lower].some(
       (i) =>
         !landmarks[i] ||
         !Number.isFinite(landmarks[i].x) ||
@@ -90,43 +94,74 @@ function makeBrow(
     )
   )
     return null;
-  const [inner, outer] = indices.map(pixel);
-  const eyeLength = distance(inner, outer);
-  if (eyeLength < width * 0.02) return null;
-  const eyeAngle = Math.atan2(outer.y - inner.y, outer.x - inner.x);
-  const eyeAxis = { x: Math.cos(eyeAngle), y: Math.sin(eyeAngle) };
-  const eyeNormal = { x: -eyeAxis.y, y: eyeAxis.x };
-  if (eyeNormal.y > 0) {
-    eyeNormal.x *= -1;
-    eyeNormal.y *= -1;
+  const upper = indices.upper.map(pixel),
+    lower = indices.lower.map(pixel);
+  const midpoint = (a: Point, b: Point) => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  });
+  const inner = midpoint(upper[0], lower[0]),
+    outer = midpoint(upper[4], lower[4]);
+  const observedLength = distance(inner, outer);
+  if (observedLength < width * 0.025) return null;
+  const observedAngle = Math.atan2(outer.y - inner.y, outer.x - inner.x);
+  const observedAxis = {
+    x: Math.cos(observedAngle),
+    y: Math.sin(observedAngle),
+  };
+  const observedNormal = { x: -observedAxis.y, y: observedAxis.x };
+  if (observedNormal.y > 0) {
+    observedNormal.x *= -1;
+    observedNormal.y *= -1;
   }
-  const angle = eyeAngle + (adjustment.rotation * Math.PI) / 180;
+  const angle = observedAngle + (adjustment.rotation * Math.PI) / 180;
   const axis = { x: Math.cos(angle), y: Math.sin(angle) };
   const normal = { x: -axis.y, y: axis.x };
   if (normal.y > 0) {
     normal.x *= -1;
     normal.y *= -1;
   }
-  const rawLength = eyeLength * profile.length;
+  const rawLength = observedLength * profile.length;
   const length = rawLength * clamp(adjustment.width, 0.9, 1.12);
   const brow: Brow = {
     side,
     origin: {
       x:
         inner.x +
-        eyeLength *
-          (profile.offset[0] * eyeAxis.x + profile.offset[1] * eyeNormal.x) +
+        observedLength *
+          (profile.offset[0] * observedAxis.x +
+            profile.offset[1] * observedNormal.x) +
         rawLength * adjustment.x,
       y:
         inner.y +
-        eyeLength *
-          (profile.offset[0] * eyeAxis.y + profile.offset[1] * eyeNormal.y) -
+        observedLength *
+          (profile.offset[0] * observedAxis.y +
+            profile.offset[1] * observedNormal.y) -
         rawLength * adjustment.y,
     },
     axis,
     normal,
     length,
     polygon: [],
+    sourcePolygon: [
+      ...upper.map((p, i) => {
+        const edge = i === 0 ? -0.04 : i === 4 ? 0.04 : 0;
+        return {
+          x:
+            p.x +
+            observedLength * (observedNormal.x * 0.045 + observedAxis.x * edge),
+          y:
+            p.y +
+            observedLength * (observedNormal.y * 0.045 + observedAxis.y * edge),
+        };
+      }),
+      ...lower
+        .reverse()
+        .map((p) => ({
+          x: p.x - observedNormal.x * observedLength * 0.06,
+          y: p.y - observedNormal.y * observedLength * 0.06,
+        })),
+    ],
   };
   const points = profile.contour;
   // keep the traced outline smooth between points.

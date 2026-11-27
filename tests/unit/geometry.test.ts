@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EYE_INDICES,
+  BROW_INDICES,
   coverTransform,
   displayToSource,
   fromBrowLocal,
@@ -19,6 +20,16 @@ function faceFixture(): Point[] {
   for (const [side, [inner, outer]] of Object.entries(EYE_INDICES)) {
     face[inner] = { x: side === "left" ? 0.57 : 0.43, y: 0.49 };
     face[outer] = { x: side === "left" ? 0.75 : 0.25, y: 0.47 };
+  }
+  for (const side of ["left", "right"] as const) {
+    const direction = side === "left" ? 1 : -1;
+    BROW_INDICES[side].upper.forEach((id, i) => {
+      const t = i / 4;
+      const x = 0.5 + direction * (0.055 + t * 0.22);
+      const y = 0.37 + 0.02 * t - 0.035 * Math.sin(Math.PI * t);
+      face[id] = { x, y };
+      face[BROW_INDICES[side].lower[i]] = { x, y: y + 0.03 };
+    });
   }
   return face;
 }
@@ -98,6 +109,20 @@ describe("face-relative eyebrow geometry", () => {
       local.y,
     );
   });
+  it("follows the brows when their height changes independently of the eyes", () => {
+    const face = faceFixture();
+    const before = makeBrows(face, "straight", defaultCalibration(), 800, 600);
+    for (const indices of Object.values(BROW_INDICES))
+      for (const id of [...indices.upper, ...indices.lower]) face[id].y -= 0.06;
+    const after = makeBrows(face, "straight", defaultCalibration(), 800, 600);
+    after.forEach((brow, i) => {
+      expect(brow.origin.y - before[i].origin.y).toBeCloseTo(-36);
+      expect(brow.origin.x).toBeCloseTo(before[i].origin.x);
+      expect(brow.sourcePolygon[0].y).toBeCloseTo(
+        before[i].sourcePolygon[0].y - 36,
+      );
+    });
+  });
   it("calibrates one brow without changing the other", () => {
     const calibration = defaultCalibration(),
       face = faceFixture();
@@ -113,44 +138,93 @@ describe("face-relative eyebrow geometry", () => {
     {
       style: "straight" as const,
       width: 722,
-      eyes: {
-        left: [
-          [412.7, 568.9],
-          [510.2, 580.8],
-        ],
-        right: [
-          [291.9, 548.7],
-          [193.3, 532.1],
-        ],
+      brows: {
+        left: {
+          upper: [
+            [419, 489],
+            [475, 489],
+            [523, 492],
+            [558, 510],
+            [575, 534],
+          ],
+          lower: [
+            [406, 519],
+            [467, 509],
+            [512, 511],
+            [542, 524],
+            [561, 543],
+          ],
+        },
+        right: {
+          upper: [
+            [310, 474],
+            [257, 458],
+            [208, 447],
+            [169, 453],
+            [144, 471],
+          ],
+          lower: [
+            [314, 507],
+            [259, 479],
+            [215, 468],
+            [181, 471],
+            [157, 484],
+          ],
+        },
       },
       bounds: { left: [393, 580, 481, 543], right: [130, 326, 441, 509] },
     },
     {
       style: "soft-arch" as const,
       width: 721,
-      eyes: {
-        left: [
-          [412.7, 568.1],
-          [510.2, 580.6],
-        ],
-        right: [
-          [293.4, 548.4],
-          [193.7, 532.2],
-        ],
+      brows: {
+        left: {
+          upper: [
+            [420, 486],
+            [475, 485],
+            [523, 489],
+            [558, 507],
+            [575, 532],
+          ],
+          lower: [
+            [407, 517],
+            [467, 505],
+            [512, 508],
+            [542, 521],
+            [561, 541],
+          ],
+        },
+        right: {
+          upper: [
+            [310, 470],
+            [256, 452],
+            [208, 441],
+            [169, 447],
+            [143, 467],
+          ],
+          lower: [
+            [314, 503],
+            [259, 474],
+            [214, 463],
+            [181, 467],
+            [156, 480],
+          ],
+        },
       },
       bounds: { left: [393, 579, 477, 543], right: [132, 326, 428, 506] },
     },
   ])(
     "matches the full eyebrow bounds in the $style reference",
-    ({ style, width, eyes, bounds }) => {
+    ({ style, width, brows: observed, bounds }) => {
       const face = faceFixture();
       for (const side of ["left", "right"] as const)
-        EYE_INDICES[side].forEach((id, i) => {
-          face[id] = {
-            x: eyes[side][i][0] / width,
-            y: eyes[side][i][1] / 1086,
-          };
-        });
+        for (const edge of ["upper", "lower"] as const)
+          BROW_INDICES[side][edge].forEach((id, i) => {
+            face[id] = {
+              x: observed[side][edge][i][0] / width,
+              y: observed[side][edge][i][1] / 1086,
+            };
+          });
       const brows = makeBrows(face, style, defaultCalibration(), width, 1086);
       for (const brow of brows) {
         const x = brow.polygon.map((p) => p.x),
@@ -219,7 +293,7 @@ describe("collision detection", () => {
       800,
       600,
     )[0];
-    const p = fromBrowLocal({ x: 0.4, y: 0 }, brow);
+    const p = fromBrowLocal({ x: 0.4, y: 0.1 }, brow);
     expect(isProtected(p, [brow], 3)).toBe(true);
     expect(isProtected({ x: 0, y: 0 }, [brow], 3)).toBe(false);
   });

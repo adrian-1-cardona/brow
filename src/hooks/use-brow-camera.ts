@@ -9,6 +9,7 @@ import {
   toBrowLocal,
 } from "@/lib/geometry";
 import {
+  applyStylePreview,
   applyVerifiedPatches,
   drawPatchMarkers,
   handNearBrows,
@@ -30,6 +31,7 @@ type CameraOptions = {
   calibration: Calibration;
   stability: number;
   hands: boolean;
+  preview: boolean;
   review: boolean;
   brush: number;
   patches: VerifiedPatch[];
@@ -49,6 +51,9 @@ export function useBrowCamera(options: CameraOptions) {
   const [status, setStatus] = useState<CameraStatus>("off");
   const [error, setError] = useState("");
   const [warning, setWarning] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState<
+    "waiting" | "changed" | "unchanged" | "obstructed"
+  >("waiting");
   const [handStatus, setHandStatus] = useState("Off");
   const [tipStatus, setTipStatus] = useState(
     "Unavailable · mark the tip to try",
@@ -79,6 +84,7 @@ export function useBrowCamera(options: CameraOptions) {
       if (update) {
         setStatus("off");
         setWarning(false);
+        setPreviewStatus("waiting");
         setMarkTip(false);
         setTipAttempted(false);
         setHandStatus("Off");
@@ -320,13 +326,14 @@ export function useBrowCamera(options: CameraOptions) {
         browsRef.current = brows;
         originalCtx.drawImage(frame, 0, 0);
         proposedCtx.drawImage(frame, 0, 0);
-        if (safe && settings.patches.some((p) => p.verified)) {
+        let changed = 0;
+        let obstructed = false;
+        if (safe && settings.preview && brows.length === 2) {
           const image = context.getImageData(0, 0, frame.width, frame.height);
-          proposedCtx.putImageData(
-            applyVerifiedPatches(image, brows, settings.patches),
-            0,
-            0,
-          );
+          ({ changed, obstructed } = applyStylePreview(image, brows));
+          if (!obstructed && settings.patches.some((p) => p.verified))
+            changed += applyVerifiedPatches(image, brows, settings.patches);
+          proposedCtx.putImageData(image, 0, 0);
         }
         outline(originalCtx, brows, Math.max(1.25, frame.width / 720));
         if (settings.review)
@@ -356,6 +363,15 @@ export function useBrowCamera(options: CameraOptions) {
             (handFresh &&
               handNearBrows(hands, brows, frame.width, frame.height)));
         if (now - lastUi > 220) {
+          setPreviewStatus(
+            !safe || brows.length !== 2
+              ? "waiting"
+              : obstructed
+                ? "obstructed"
+                : changed > 0
+                  ? "changed"
+                  : "unchanged",
+          );
           setWarning(Boolean(near));
           setStatus(
             !ready
@@ -494,6 +510,7 @@ export function useBrowCamera(options: CameraOptions) {
     status,
     error,
     warning,
+    previewStatus,
     handStatus,
     tipStatus,
     markTip,

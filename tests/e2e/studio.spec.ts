@@ -4,6 +4,8 @@ import {
   makeBrows,
   sourceToDisplay,
   fromBrowLocal,
+  polygonDistance,
+  isProtected,
 } from "../../src/lib/geometry";
 import { defaultCalibration, type Point } from "../../src/lib/types";
 
@@ -54,8 +56,21 @@ async function streamFixture(page: Page, face?: string) {
           }
           let counter = 0;
           const draw = () => {
-            if (face) ctx.drawImage(image, 140, 0, 320, 480);
-            else {
+            if (face) {
+              ctx.fillStyle = "#baad8b";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              const scale = Math.min(
+                canvas.width / image.width,
+                canvas.height / image.height,
+              );
+              ctx.drawImage(
+                image,
+                (canvas.width - image.width * scale) / 2,
+                (canvas.height - image.height * scale) / 2,
+                image.width * scale,
+                image.height * scale,
+              );
+            } else {
               ctx.fillStyle = "#baad8b";
               ctx.fillRect(0, 0, 640, 480);
             }
@@ -290,7 +305,7 @@ test("runs the real vision worker, compares synchronized live frames, drags by p
   expect(errors).toEqual([]);
 });
 
-test("maps real face landmarks, protects the outline, verifies a mark, and pauses on lighting loss", async ({
+test("automatically previews real eyebrow pixels, protects the outline, supports reviewed touch-ups, and pauses on lighting loss", async ({
   page,
 }) => {
   test.skip(
@@ -372,11 +387,56 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   );
   await page.getByRole("button", { name: "View proposed result" }).click();
   await expect(
-    page.getByText("Mark a stray hair outside the red outline on the left."),
+    page.getByText("Virtual preview · estimate", { exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".tracking-status")).toHaveText(
-    "Face tracking active",
-  );
+  await expect(page.locator(".review-instruction")).not.toBeVisible();
+  const changes = await page
+    .getByTestId("proposed-canvas")
+    .evaluate((canvas: HTMLCanvasElement) => {
+      const raw = document.createElement("canvas");
+      raw.width = canvas.width;
+      raw.height = canvas.height;
+      const ctx = raw.getContext("2d")!;
+      ctx.drawImage(
+        document.querySelector<HTMLVideoElement>(".camera-source")!,
+        0,
+        0,
+        raw.width,
+        raw.height,
+      );
+      const before = ctx.getImageData(0, 0, raw.width, raw.height).data;
+      const after = canvas
+        .getContext("2d")!
+        .getImageData(0, 0, raw.width, raw.height).data;
+      const points: Point[] = [];
+      for (let y = 100; y < raw.height; y++)
+        for (let x = 0; x < raw.width; x++) {
+          const i = (y * raw.width + x) * 4;
+          if (Math.abs(before[i] - after[i]) > 3) points.push({ x, y });
+        }
+      return points;
+    });
+  expect(changes.length).toBeGreaterThan(20);
+  for (const point of changes) {
+    expect(
+      brows.some((brow) => polygonDistance(point, brow.sourcePolygon) < 2),
+    ).toBe(true);
+    expect(isProtected(point, brows)).toBe(false);
+  }
+  await page.screenshot({
+    path: `/tmp/brow-studio-auto-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Soft Arch/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Close comparison" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Virtual preview · estimate", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Straight/ }).click();
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: "Mark areas on live mirror" }).click();
   const stage = page.getByTestId("camera-stage"),
     rect = await stage.boundingBox();
   const clickLocal = async (u: number, v: number) => {
@@ -390,7 +450,7 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
     );
     await page.mouse.click(rect!.x + display.x, rect!.y + display.y);
   };
-  await clickLocal(0.4, 0);
+  await clickLocal(0.4, 0.1);
   await expect(
     page.getByText("This area is protected. Stay outside the red outline.", {
       exact: true,
@@ -416,12 +476,14 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   ).toBeVisible();
   expect(await pixel("proposed")).toBeLessThan(35);
   await page.getByRole("button", { name: "I checked these — apply" }).click();
-  await expect(page.getByText("Proposed · 1 verified")).toBeVisible();
+  await expect(
+    page.getByText("Virtual preview · estimate", { exact: true }),
+  ).toBeVisible();
   await expect.poll(() => pixel("proposed")).toBeGreaterThan(40);
   expect(await pixel("original")).toBeLessThan(35);
   await page.getByRole("button", { name: "Open settings" }).click();
   await page.getByRole("button", { name: "Mark tweezer tip" }).click();
-  await clickLocal(0.4, 0);
+  await clickLocal(0.4, -0.18);
   await expect(
     page.getByText(
       "Tip marked. Assisted tracking can lose small or reflective tools; verify its position yourself.",
@@ -437,7 +499,33 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   await expect(page.locator(".tracking-status")).toHaveText(
     "More light needed",
   );
-  await expect(page.getByText("Proposed · 0 verified")).toBeVisible();
+  await expect(page.getByText("Preview paused", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Stop camera" }).click();
+});
+
+test("shows an explicit pause for brows obscured by glasses", async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.BROW_TEST_OBSTRUCTION,
+    "Supply BROW_TEST_OBSTRUCTION for opt-in obstruction verification.",
+  );
+  const data = await readFile(process.env.BROW_TEST_OBSTRUCTION!);
+  await streamFixture(page, "data:image/png;base64," + data.toString("base64"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Enable camera" }).click();
+  await expect(page.locator(".tracking-status")).toHaveText(
+    "Face tracking active",
+    { timeout: 45000 },
+  );
+  await page.getByRole("button", { name: /Straight/ }).click();
+  await page.getByRole("button", { name: "View proposed result" }).click();
+  await expect(
+    page.getByText("Preview paused · brows obscured", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Clear glasses or hair from your brows to preview."),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Stop camera" }).click();
 });
 

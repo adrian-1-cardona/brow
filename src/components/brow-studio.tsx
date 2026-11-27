@@ -51,6 +51,12 @@ const statusCopy = {
   pose: "Look straight ahead",
   error: "Camera needs attention",
 };
+const previewCopy = {
+  waiting: "Preview paused",
+  obstructed: "Preview paused · brows obscured",
+  unchanged: "Virtual preview · no trim detected",
+  changed: "Virtual preview · estimate",
+};
 
 export default function BrowStudio() {
   const [style, setStyle] = useState<BrowStyle | null>(null);
@@ -79,6 +85,7 @@ export default function BrowStudio() {
     calibration,
     stability,
     hands,
+    preview: compare,
     review,
     brush,
     patches,
@@ -104,7 +111,7 @@ export default function BrowStudio() {
     setStyle((current) => (current === next ? null : next));
     setPatches([]);
     setReview(false);
-    setCompare(false);
+    if (style === next) setCompare(false);
   };
   const adjust = (key: keyof Adjustment, value: number) => {
     setCalibration((old) => {
@@ -193,7 +200,7 @@ export default function BrowStudio() {
               <canvas
                 ref={proposedRef}
                 className="camera-canvas"
-                aria-label="Synchronized live proposed result, only verified eyebrow areas modified"
+                aria-label="Synchronized live virtual trim, protected eyebrow interiors preserved"
                 data-testid="proposed-canvas"
               />
             </div>
@@ -201,7 +208,7 @@ export default function BrowStudio() {
             {compare && live && (
               <div className="view-labels">
                 <span>Live mirror</span>
-                <span>Proposed · {verified} verified</span>
+                <span>{previewCopy[camera.previewStatus]}</span>
               </div>
             )}
             {!live && (
@@ -250,8 +257,12 @@ export default function BrowStudio() {
             )}
             {live && style && !review && !camera.markTip && (
               <div className="stage-note">
-                <ShieldCheck size={14} /> Everything inside the red outline
-                stays.
+                <ShieldCheck size={14} />{" "}
+                {compare && camera.previewStatus === "obstructed"
+                  ? "Clear glasses or hair from your brows to preview."
+                  : compare
+                    ? "Virtual trim only. Check every hair before grooming."
+                    : "Everything inside the red outline stays."}
               </div>
             )}
             {(review || camera.markTip) && live && (
@@ -388,7 +399,7 @@ export default function BrowStudio() {
               disabled={!style || !live}
               onClick={() => {
                 setCompare(!compare);
-                setReview(!compare && verified === 0);
+                setReview(false);
                 camera.setMarkTip(false);
               }}
             >
@@ -493,9 +504,9 @@ export default function BrowStudio() {
             <span className="beta-tag">MANUAL</span>
           </div>
           <p>
-            Mark a small area outside the outline on the live mirror. Inspect
-            each mark, then verify it. The preview gently reduces dark pixels in
-            verified areas only.
+            The virtual trim is automatic. For extra touch-ups, mark a small
+            area outside the outline and verify it first. Check every hair
+            yourself before actual grooming.
           </p>
           <label className="range-label">
             <span>
@@ -594,7 +605,7 @@ export default function BrowStudio() {
           )}
           <small>
             {pending > 0
-              ? `${pending} unverified areas remain unchanged. `
+              ? `${pending} extra touch-ups await verification. `
               : ""}
             Marks reset after tracking loss, calibration changes, a style
             change, or stopping the camera.
