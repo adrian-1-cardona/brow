@@ -919,16 +919,6 @@ button svg {
   padding: 10px;
   font-size: 10px;
 }
-.diagnostic {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  font-size: 9px;
-  color: #8a997a;
-  border: 1px solid #dfe4d4;
-  padding: 11px;
-  border-radius: 5px;
-}
 .install-note {
   display: flex;
   align-items: flex-start;

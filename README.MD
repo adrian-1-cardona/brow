@@ -13,7 +13,7 @@ npm run dev
 
 Open <http://localhost:3000> and enable the camera. Camera permission is requested only after a click. Microphone access is never requested.
 
-The install step copies the vendored Wasm runtime, builds the classic vision worker and creates application icons. Pinned v1 face and hand models are included. No model download or external service is needed at runtime. `npm run assets` regenerates derived files. Use a normal development dependency install: the asset builder needs esbuild.
+The install step copies the vendored Wasm runtime, builds the classic vision worker and checks the included models against their pinned hashes. Icons and models are stored in the repository. No model download or external service is needed. `npm run assets` rebuilds the worker and copies the runtime. Use a normal development dependency install: the asset builder needs esbuild.
 
 ## Using the mirror
 
@@ -58,7 +58,7 @@ That test uses the portrait only in an animated temporary test `MediaStream`, ru
 | `src/lib/geometry.ts`            | MediaPipe topology indices, face-relative shape construction, calibration, collision, stabilization and coordinate transforms  |
 | `src/lib/render.ts`              | Thin red strokes and restrained same-frame texture blending in manually verified eyebrow areas                                 |
 | `src/lib/tip-tracker.ts`         | User-seeded normalized template correlation with contrast, ambiguity and timeout rejection                                     |
-| `scripts/prepare-assets.mjs`     | Local worker build, runtime copying, icons and model provenance                                                                |
+| `scripts/prepare-assets.mjs`     | Local worker build, runtime copying and model integrity checks                                                                 |
 | `public/sw.js`                   | Same-origin app-shell and asset caching for installed/offline use                                                              |
 
 The topology uses actual detected eyebrow landmark positions, never fixed facial coordinates. Shape dimensions and taper are relative proportions of the tracked brow. Straight has a restrained rise; Soft Arch has a modest, smooth apex. A movement-adaptive filter attenuates jitter. MediaPipe itself is configured for one face and conservative presence thresholds. Overlays and edits require four consecutive detections, recent results, adequate light and a forward-facing pose. Delayed results and stale hand detections are rejected.

@@ -25,14 +25,11 @@ export function outline(
   }
 }
 
-// Pixel edits are limited to manually verified discs in the eyebrow envelope.
-// Dark hair pixels blend toward nearby, same-frame skin texture. Original pixels
-// inside (or next to) either protected polygon are always copied unchanged.
+// only edit verified spots outside the protected outline.
 export function applyVerifiedPatches(
   image: ImageData,
   brows: Brow[],
   patches: VerifiedPatch[],
-  strength = 0.8,
 ): ImageData {
   const { width, height, data } = image;
   const original = new Uint8ClampedArray(data);
@@ -56,8 +53,7 @@ export function applyVerifiedPatches(
           d = Math.hypot(x - center.x, y - center.y) / radius;
         if (d >= 1 || !inBrowRegion(p, brow) || isProtected(p, brows, 2))
           continue;
-        // Sample away from the brow along its own normal. Use local texture,
-        // with rejection of dark/hair samples and of protected areas.
+        // sample nearby skin without touching the protected area.
         const samples: number[][] = [];
         for (const sign of [1, -1])
           for (const offset of [0.19, 0.24, 0.29]) {
@@ -85,9 +81,8 @@ export function applyVerifiedPatches(
         const darkness =
           luminance(sample) -
           luminance([original[i], original[i + 1], original[i + 2]]);
-        // Skin-like pixels remain untouched; avoid blanket blur or filling.
-        const blend =
-          clamp((darkness - 12) / 42, 0, 1) * (1 - d * d) * strength;
+        // blend dark hairs while leaving skin texture alone.
+        const blend = clamp((darkness - 12) / 42, 0, 1) * (1 - d * d) * 0.8;
         for (let c = 0; c < 3; c++)
           data[i + c] = original[i + c] * (1 - blend) + sample[c] * blend;
       }

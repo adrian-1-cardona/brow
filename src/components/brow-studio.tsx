@@ -96,10 +96,10 @@ export default function BrowStudio() {
     clearPatches,
     addPatch,
   });
-  const live = !["off", "error"].includes(camera.status);
+  const live = camera.status !== "off" && camera.status !== "error";
   const tracked = camera.status === "tracking";
-  const pending = patches.filter((p) => !p.verified).length;
   const verified = patches.filter((p) => p.verified).length;
+  const pending = patches.length - verified;
 
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator)
@@ -464,7 +464,7 @@ export default function BrowStudio() {
                 02 <span>SEE THE POSSIBILITIES</span>
               </span>
               <button
-                className={`button compare-button ${compare ? "is-comparing" : ""}`}
+                className="button compare-button"
                 disabled={!style || !live}
                 onClick={() => {
                   setCompare(!compare);
@@ -771,14 +771,6 @@ export default function BrowStudio() {
             Higher values reduce jitter, with a little more delay. Keep your
             head still when checking a hair.
           </p>
-          <div className="diagnostic">
-            <span>Local face tracking</span>
-            <span>
-              {tracked
-                ? `Active · up to ${camera.fps} fps`
-                : statusCopy[camera.status]}
-            </span>
-          </div>
         </div>
 
         <div className="settings-section">

@@ -1,12 +1,14 @@
 import type { Point } from "./types";
 
-// User-seeded template tracking is deliberately separate from object recognition.
-// A low match, ambiguous match, timeout or occlusion immediately drops the tip.
+// drop the marked tip when the match becomes unreliable.
 export class TipTracker {
   private template: number[] = [];
   private point: Point | null = null;
   private seededAt = 0;
-  readonly half = 5;
+  private readonly half = 5;
+  get active() {
+    return this.point !== null;
+  }
   clear() {
     this.template = [];
     this.point = null;

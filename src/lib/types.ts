@@ -1,4 +1,4 @@
-export type Point = { x: number; y: number; z?: number };
+export type Point = { x: number; y: number };
 export type BrowStyle = "straight" | "soft-arch";
 export type BrowSide = "left" | "right";
 export type Adjustment = {
@@ -10,7 +10,7 @@ export type Adjustment = {
   rotation: number;
 };
 export type Calibration = Record<BrowSide, Adjustment>;
-export const DEFAULT_ADJUSTMENT: Adjustment = {
+const DEFAULT_ADJUSTMENT: Adjustment = {
   x: 0,
   y: 0,
   width: 1,

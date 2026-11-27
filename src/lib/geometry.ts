@@ -13,17 +13,15 @@ export const distance = (a: Point, b: Point) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-// MediaPipe topology indices, never screen or facial coordinates. Ordered inner → tail.
+// landmark indices run from the inner brow to the tail.
 export const BROW_INDICES = {
   left: {
     top: [336, 296, 334, 293, 300],
     bottom: [285, 295, 282, 283, 276],
-    eye: [362, 263],
   },
   right: {
     top: [107, 66, 105, 63, 70],
     bottom: [55, 65, 52, 53, 46],
-    eye: [133, 33],
   },
 } as const;
 
@@ -42,7 +40,7 @@ export function pointInPolygon(p: Point, polygon: Point[]): boolean {
   return inside;
 }
 
-export function distanceToSegment(p: Point, a: Point, b: Point): number {
+function distanceToSegment(p: Point, a: Point, b: Point): number {
   const d = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
   const t = d
     ? clamp(((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / d, 0, 1)
@@ -78,7 +76,7 @@ export function fromBrowLocal(p: Point, brow: Brow): Point {
   };
 }
 
-export function makeBrow(
+function makeBrow(
   landmarks: Point[],
   side: BrowSide,
   style: BrowStyle,
@@ -140,7 +138,7 @@ export function makeBrow(
       0.11,
       0.24,
     ) * clamp(adjustment.thickness, 0.85, 1.25);
-  // A restrained rise with a soft apex at 62% and a tapered tail, based on the supplied references.
+  // keep the arch subtle like the references.
   const rise =
     (style === "straight" ? 0.022 : 0.078) +
     clamp(adjustment.arch, -0.02, 0.035);
@@ -240,9 +238,9 @@ export class LandmarkSmoother {
     this.previous = points.map((p, i) => {
       const old = this.previous[i];
       const movement = distance(p, old);
-      // Fast movement catches up quickly; tiny jitter is attenuated.
+      // smooth small jitters without lagging behind bigger moves.
       const alpha = clamp(1 - stability + movement * 16, 0.18, 0.9);
-      return { x: lerp(old.x, p.x, alpha), y: lerp(old.y, p.y, alpha), z: p.z };
+      return { x: lerp(old.x, p.x, alpha), y: lerp(old.y, p.y, alpha) };
     });
     return this.previous;
   }

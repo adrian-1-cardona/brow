@@ -1,4 +1,4 @@
-const CACHE = "brow-studio-v1";
+const CACHE = "brow-studio-v2";
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches

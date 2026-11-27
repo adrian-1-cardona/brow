@@ -25,7 +25,7 @@ import {
   type VerifiedPatch,
 } from "@/lib/types";
 
-export type CameraOptions = {
+type CameraOptions = {
   style: BrowStyle | null;
   calibration: Calibration;
   stability: number;
@@ -36,7 +36,7 @@ export type CameraOptions = {
   clearPatches: () => void;
   addPatch: (patch: VerifiedPatch) => void;
 };
-export type CameraStatus =
+type CameraStatus =
   "off" | "starting" | "searching" | "tracking" | "dim" | "pose" | "error";
 
 export function useBrowCamera(options: CameraOptions) {
@@ -55,36 +55,38 @@ export function useBrowCamera(options: CameraOptions) {
   );
   const [markTip, setMarkTip] = useState(false);
   const [tipAttempted, setTipAttempted] = useState(false);
-  const [fps, setFps] = useState(0);
   const cleanupRef = useRef<(() => void) | null>(null);
   const generation = useRef(0);
   const active = useRef(false);
   const browsRef = useRef<Brow[]>([]);
-  const currentImage = useRef<ImageData | null>(null);
-  const tipTracker = useRef(new TipTracker());
+  const frameRef = useRef<HTMLCanvasElement | null>(null);
+  const [tipTracker] = useState(() => new TipTracker());
   const faceGood = useRef(false);
 
-  const stop = useCallback((update = true) => {
-    generation.current++;
-    active.current = false;
-    cleanupRef.current?.();
-    cleanupRef.current = null;
-    browsRef.current = [];
-    currentImage.current = null;
-    faceGood.current = false;
-    tipTracker.current.clear();
-    for (const canvas of [originalRef.current, proposedRef.current])
-      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    optionsRef.current.clearPatches();
-    if (update) {
-      setStatus("off");
-      setWarning(false);
-      setMarkTip(false);
-      setTipAttempted(false);
-      setHandStatus("Off");
-      setTipStatus("Unavailable · mark the tip to try");
-    }
-  }, []);
+  const stop = useCallback(
+    (update = true) => {
+      generation.current++;
+      active.current = false;
+      cleanupRef.current?.();
+      cleanupRef.current = null;
+      browsRef.current = [];
+      frameRef.current = null;
+      faceGood.current = false;
+      tipTracker.clear();
+      for (const canvas of [originalRef.current, proposedRef.current])
+        canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+      optionsRef.current.clearPatches();
+      if (update) {
+        setStatus("off");
+        setWarning(false);
+        setMarkTip(false);
+        setTipAttempted(false);
+        setHandStatus("Off");
+        setTipStatus("Unavailable · mark the tip to try");
+      }
+    },
+    [tipTracker],
+  );
 
   const start = useCallback(async () => {
     if (active.current) return;
@@ -112,16 +114,8 @@ export function useBrowCamera(options: CameraOptions) {
     };
     cleanupRef.current = cleanup;
     const fail = (message: string) => {
-      cleanup();
-      active.current = false;
-      browsRef.current = [];
-      faceGood.current = false;
-      currentImage.current = null;
-      tipTracker.current.clear();
-      for (const canvas of [originalRef.current, proposedRef.current])
-        canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-      optionsRef.current.clearPatches();
-      setWarning(false);
+      if (cancelled) return;
+      stop();
       setStatus("error");
       setError(message);
     };
@@ -180,6 +174,7 @@ export function useBrowCamera(options: CameraOptions) {
         proposed = proposedRef.current;
       if (!context || !original || !proposed)
         throw new Error("This browser could not create the camera preview.");
+      frameRef.current = frame;
       for (const canvas of [original, proposed]) {
         canvas.width = frame.width;
         canvas.height = frame.height;
@@ -188,7 +183,7 @@ export function useBrowCamera(options: CameraOptions) {
         proposedCtx = proposed.getContext("2d");
       if (!originalCtx || !proposedCtx)
         throw new Error("Canvas rendering is unavailable.");
-      // MediaPipe's Wasm loader uses importScripts; serve a bundled classic worker.
+      // use a classic worker so MediaPipe can load its wasm scripts.
       worker = new Worker("/vision/worker.js");
       const smoother = new LandmarkSmoother();
       let ready = false,
@@ -208,7 +203,6 @@ export function useBrowCamera(options: CameraOptions) {
       let tip: Point | null = null,
         tipConfidence = 0,
         trackingWasGood = false;
-      const base = window.location.origin;
       worker.onmessage = (event: MessageEvent<TrackingMessage>) => {
         if (cancelled) return;
         const message = event.data;
@@ -233,7 +227,7 @@ export function useBrowCamera(options: CameraOptions) {
         if (message.type === "result") {
           busy = false;
           elapsed = message.elapsed;
-          // A result delayed by model initialization cannot authorize overlays or edits.
+          // skip stale results so the outline stays with the live frame.
           if (performance.now() - message.timestamp > 350) {
             face = [];
             goodFrames = 0;
@@ -242,7 +236,6 @@ export function useBrowCamera(options: CameraOptions) {
           face = smoother.update(message.face, optionsRef.current.stability);
           faceTime = message.timestamp;
           goodFrames = face.length ? goodFrames + 1 : 0;
-          if (!face.length) smoother.reset();
           if (message.hands.length) {
             hands = message.hands;
             handTime = performance.now();
@@ -253,7 +246,7 @@ export function useBrowCamera(options: CameraOptions) {
         fail(
           "Tracking could not load in this browser. Check that the local vision files are installed and try again.",
         );
-      worker.postMessage({ type: "init", base });
+      worker.postMessage({ type: "init" });
       initTimeout = setTimeout(() => {
         if (!cancelled && !ready)
           fail(
@@ -284,7 +277,7 @@ export function useBrowCamera(options: CameraOptions) {
           goodFrames = 0;
           smoother.reset();
           optionsRef.current.clearPatches();
-          tipTracker.current.clear();
+          tipTracker.clear();
           tip = null;
         }
         context.drawImage(video, 0, 0, frame.width, frame.height);
@@ -298,7 +291,7 @@ export function useBrowCamera(options: CameraOptions) {
         }
         const fresh =
           ready && face.length > 0 && now - faceTime < 280 && goodFrames >= 4;
-        // Large head turns make a two-dimensional brow guide unreliable.
+        // pause the guide when the face turns too far.
         const leftEye =
           face[362] && face[263] ? Math.abs(face[362].x - face[263].x) : 0;
         const rightEye =
@@ -311,7 +304,7 @@ export function useBrowCamera(options: CameraOptions) {
         faceGood.current = safe;
         if (!safe && trackingWasGood) {
           settings.clearPatches();
-          tipTracker.current.clear();
+          tipTracker.clear();
           tip = null;
         }
         trackingWasGood = safe;
@@ -335,14 +328,17 @@ export function useBrowCamera(options: CameraOptions) {
             0,
           );
         }
-        if (now - lastTip > 85) currentImage.current = getPixels();
         outline(originalCtx, brows, Math.max(1.25, frame.width / 720));
         if (settings.review)
           drawPatchMarkers(originalCtx, brows, settings.patches);
         if (now - lastTip > 85) {
-          const result = tipTracker.current.update(getPixels(), now);
-          tip = result.point;
-          tipConfidence = result.confidence;
+          if (tipTracker.active) {
+            const result = tipTracker.update(getPixels(), now);
+            tip = result.point;
+            tipConfidence = result.confidence;
+          } else {
+            tip = null;
+          }
           lastTip = now;
         }
         if (tip && safe) {
@@ -361,7 +357,6 @@ export function useBrowCamera(options: CameraOptions) {
               handNearBrows(hands, brows, frame.width, frame.height)));
         if (now - lastUi > 220) {
           setWarning(Boolean(near));
-          setFps(Math.round(1000 / Math.max(elapsed, 65)));
           setStatus(
             !ready
               ? "starting"
@@ -404,7 +399,6 @@ export function useBrowCamera(options: CameraOptions) {
                   bitmap,
                   timestamp: now,
                   hands: settings.hands,
-                  base,
                 },
                 [bitmap],
               );
@@ -436,7 +430,7 @@ export function useBrowCamera(options: CameraOptions) {
                 : "The camera could not start.",
       );
     }
-  }, []);
+  }, [stop, tipTracker]);
 
   useEffect(() => {
     const hidden = () => {
@@ -463,10 +457,11 @@ export function useBrowCamera(options: CameraOptions) {
       if (markTip) {
         setTipAttempted(true);
         setMarkTip(false);
-        if (
-          !currentImage.current ||
-          !tipTracker.current.seed(currentImage.current, p, performance.now())
-        )
+        const frame = frameRef.current;
+        const image = frame
+          ?.getContext("2d")
+          ?.getImageData(0, 0, frame.width, frame.height);
+        if (!image || !tipTracker.seed(image, p, performance.now()))
           return "The tip has too little visual detail. Try brighter light and mark it again.";
         return "Tip marked. Assisted tracking can lose small or reflective tools; verify its position yourself.";
       }
@@ -490,7 +485,7 @@ export function useBrowCamera(options: CameraOptions) {
       });
       return "Mark added. Inspect it closely, then verify before applying to the live preview.";
     },
-    [markTip],
+    [markTip, tipTracker],
   );
 
   return {
@@ -504,7 +499,6 @@ export function useBrowCamera(options: CameraOptions) {
     markTip,
     setMarkTip,
     tipAttempted,
-    fps,
     start,
     stop,
     selectPoint,

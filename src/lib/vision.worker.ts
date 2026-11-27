@@ -4,10 +4,11 @@ import {
   FilesetResolver,
   HandLandmarker,
 } from "@mediapipe/tasks-vision";
-import type { TrackingMessage } from "./types";
+import type { Point, TrackingMessage } from "./types";
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 let face: FaceLandmarker | null = null;
 let hands: HandLandmarker | null = null;
+let files: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>;
 let handFailed = false;
 let lastHands = 0;
 const send = (message: TrackingMessage) => ctx.postMessage(message);
@@ -16,12 +17,10 @@ ctx.onmessage = async (event: MessageEvent) => {
   try {
     if (data.type === "init") {
       if (!face) {
-        const files = await FilesetResolver.forVisionTasks(
-          data.base + "/vision/wasm",
-        );
+        files = await FilesetResolver.forVisionTasks("/vision/wasm");
         face = await FaceLandmarker.createFromOptions(files, {
           baseOptions: {
-            modelAssetPath: data.base + "/vision/face_landmarker.task",
+            modelAssetPath: "/vision/face_landmarker.task",
             delegate: "CPU",
           },
           runningMode: "VIDEO",
@@ -38,17 +37,12 @@ ctx.onmessage = async (event: MessageEvent) => {
       const bitmap: ImageBitmap = data.bitmap;
       try {
         const result = face.detectForVideo(bitmap, data.timestamp);
-        let handPoints: NonNullable<
-          ReturnType<HandLandmarker["detectForVideo"]>
-        >["landmarks"] = [];
+        let handPoints: Point[][] = [];
         if (data.hands && !handFailed && !hands) {
           try {
-            const files = await FilesetResolver.forVisionTasks(
-              data.base + "/vision/wasm",
-            );
             hands = await HandLandmarker.createFromOptions(files, {
               baseOptions: {
-                modelAssetPath: data.base + "/vision/hand_landmarker.task",
+                modelAssetPath: "/vision/hand_landmarker.task",
                 delegate: "CPU",
               },
               runningMode: "VIDEO",

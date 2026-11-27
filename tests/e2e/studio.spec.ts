@@ -57,7 +57,7 @@ async function streamFixture(page: Page, face?: string) {
               ctx.fillStyle = "#baad8b";
               ctx.fillRect(0, 0, 640, 480);
             }
-            // A changing corner verifies actual frame progression in both panels.
+            // change the corner so we can check both views stay live.
             ctx.fillStyle = counter++ % 2 ? "#c0a080" : "#8090a0";
             ctx.fillRect(0, 0, 100, 100);
             if (state.fixtureDark) {
@@ -243,7 +243,7 @@ test("runs the real vision worker, compares synchronized live frames, drags by p
       .poll(async () => Number(await divider.getAttribute("aria-valuenow")))
       .toBeGreaterThan(65);
   }
-  // With no detected face, neither panel has outlines or edits: all pixels match.
+  // both views should match when there are no guides or edits.
   const synchronized = await page.evaluate(() => {
     const a = document.querySelector<HTMLCanvasElement>(
       '[data-testid="original-canvas"]',
@@ -302,7 +302,7 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   await expect(
     page.getByText("Face tracking active", { exact: true }),
   ).toBeVisible({ timeout: 45000 });
-  // No red pixels before choosing a style.
+  // keep the guide hidden until a style is chosen.
   const outlinePixels = () =>
     page
       .getByTestId("original-canvas")
@@ -389,6 +389,18 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   await expect(
     page.getByText("1 verified area in your live preview"),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name: "Mark tweezer tip" }).click();
+  await clickLocal(0.4, 0);
+  await expect(
+    page.getByText(
+      "Tip marked. Assisted tracking can lose small or reflective tools; verify its position yourself.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "View proposed result", exact: true })
+    .click();
   await page.evaluate(() => {
     (window as unknown as { fixtureDark: boolean }).fixtureDark = true;
   });
@@ -426,8 +438,7 @@ test("can restart the actual camera tracker offline after loading local vision a
   await expect
     .poll(() =>
       page.evaluate(async () => {
-        const cache = await caches.open("brow-studio-v1");
-        return Boolean(await cache.match("/vision/face_landmarker.task"));
+        return Boolean(await caches.match("/vision/face_landmarker.task"));
       }),
     )
     .toBe(true);
