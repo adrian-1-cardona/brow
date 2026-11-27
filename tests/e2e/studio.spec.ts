@@ -15,12 +15,14 @@ async function streamFixture(page: Page, face?: string) {
         fixtureFace: Point[];
         fixtureWorkerErrors: string[];
         fixtureDark: boolean;
+        fixtureStray: Point | null;
         fixtureHandReady: boolean;
         fixtureWorkerCount: number;
       };
       state.fixtureTracks = [];
       state.fixtureWorkerErrors = [];
       state.fixtureDark = false;
+      state.fixtureStray = null;
       state.fixtureHandReady = false;
       state.fixtureWorkerCount = 0;
       const NativeWorker = window.Worker;
@@ -60,6 +62,15 @@ async function streamFixture(page: Page, face?: string) {
             // change the corner so we can check both views stay live.
             ctx.fillStyle = counter++ % 2 ? "#c0a080" : "#8090a0";
             ctx.fillRect(0, 0, 100, 100);
+            if (state.fixtureStray) {
+              ctx.fillStyle = "#15110e";
+              ctx.fillRect(
+                Math.round(state.fixtureStray.x) - 1,
+                Math.round(state.fixtureStray.y) - 2,
+                3,
+                5,
+              );
+            }
             if (state.fixtureDark) {
               ctx.fillStyle = "black";
               ctx.fillRect(0, 0, 640, 480);
@@ -322,6 +333,13 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
     path: `/tmp/brow-studio-live-${test.info().project.name}.png`,
     fullPage: true,
   });
+  await page.getByRole("button", { name: /Soft Arch/ }).click();
+  await expect.poll(outlinePixels).toBeGreaterThan(20);
+  await page.screenshot({
+    path: `/tmp/brow-studio-soft-arch-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Straight/ }).click();
   await page.getByRole("button", { name: "Open settings" }).click();
   await page.getByRole("switch", { name: /Detect nearby fingertips/ }).check();
   await expect
@@ -352,11 +370,10 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
     dimensions[0],
     dimensions[1],
   );
-  await page.getByRole("button", { name: "Open settings" }).click();
-  await page.getByRole("button", { name: "Mark areas on live mirror" }).click();
+  await page.getByRole("button", { name: "View proposed result" }).click();
   await expect(
-    page.getByRole("dialog", { name: "Settings" }),
-  ).not.toBeVisible();
+    page.getByText("Mark a stray hair outside the red outline on the left."),
+  ).toBeVisible();
   await expect(page.locator(".tracking-status")).toHaveText(
     "Face tracking active",
   );
@@ -379,14 +396,29 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
       exact: true,
     }),
   ).toBeVisible();
-  await clickLocal(0.4, -0.2);
-  await page.getByRole("button", { name: "Open settings" }).click();
+  const stray = fromBrowLocal({ x: 0.4, y: -0.18 }, brows[0]);
+  await page.evaluate((point) => {
+    (window as unknown as { fixtureStray: Point | null }).fixtureStray = point;
+  }, stray);
+  const pixel = (panel: "original" | "proposed") =>
+    page
+      .getByTestId(`${panel}-canvas`)
+      .evaluate((canvas: HTMLCanvasElement, point) => {
+        const data = canvas
+          .getContext("2d")!
+          .getImageData(Math.round(point.x), Math.round(point.y), 1, 1).data;
+        return (data[0] + data[1] + data[2]) / 3;
+      }, stray);
+  await expect.poll(() => pixel("original")).toBeLessThan(35);
+  await clickLocal(0.4, -0.18);
   await expect(
-    page.getByRole("checkbox", { name: "I checked this area" }),
+    page.getByRole("button", { name: "I checked these — apply" }),
   ).toBeVisible();
-  await page.getByRole("checkbox", { name: "I checked this area" }).check();
-  await page.getByRole("button", { name: "View 1 verified area" }).click();
+  expect(await pixel("proposed")).toBeLessThan(35);
+  await page.getByRole("button", { name: "I checked these — apply" }).click();
   await expect(page.getByText("Proposed · 1 verified")).toBeVisible();
+  await expect.poll(() => pixel("proposed")).toBeGreaterThan(40);
+  expect(await pixel("original")).toBeLessThan(35);
   await page.getByRole("button", { name: "Open settings" }).click();
   await page.getByRole("button", { name: "Mark tweezer tip" }).click();
   await clickLocal(0.4, 0);

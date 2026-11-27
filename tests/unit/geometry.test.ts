@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  BROW_INDICES,
+  EYE_INDICES,
   coverTransform,
   displayToSource,
   fromBrowLocal,
@@ -16,23 +16,9 @@ import { defaultCalibration, type Point } from "../../src/lib/types";
 
 function faceFixture(): Point[] {
   const face = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
-  for (const [side, indices] of Object.entries(BROW_INDICES)) {
-    indices.top.forEach((idx, i) => {
-      face[idx] = {
-        x:
-          (side === "left" ? 0.57 : 0.43) +
-          i * (side === "left" ? 0.045 : -0.045),
-        y: 0.35 - Math.sin((i / 4) * Math.PI) * 0.015,
-      };
-    });
-    indices.bottom.forEach((idx, i) => {
-      face[idx] = {
-        x:
-          (side === "left" ? 0.57 : 0.43) +
-          i * (side === "left" ? 0.045 : -0.045),
-        y: 0.39 - Math.sin((i / 4) * Math.PI) * 0.015,
-      };
-    });
+  for (const [side, [inner, outer]] of Object.entries(EYE_INDICES)) {
+    face[inner] = { x: side === "left" ? 0.57 : 0.43, y: 0.49 };
+    face[outer] = { x: side === "left" ? 0.75 : 0.25, y: 0.47 };
   }
   return face;
 }
@@ -71,7 +57,7 @@ describe("face-relative eyebrow geometry", () => {
       600,
     );
     expect(a).toHaveLength(2);
-    expect(a[0].polygon).toHaveLength(50);
+    expect(a[0].polygon.length).toBeGreaterThan(30);
     const straightPeak = Math.max(
       ...a[0].polygon.map((p) => toBrowLocal(p, a[0]).y),
     );
@@ -121,6 +107,92 @@ describe("face-relative eyebrow geometry", () => {
     const after = makeBrows(face, "straight", calibration, 800, 600);
     expect(after[0].origin.y).toBeLessThan(before[0].origin.y);
     expect(after[1]).toEqual(before[1]);
+  });
+
+  it.each([
+    {
+      style: "straight" as const,
+      width: 722,
+      eyes: {
+        left: [
+          [412.7, 568.9],
+          [510.2, 580.8],
+        ],
+        right: [
+          [291.9, 548.7],
+          [193.3, 532.1],
+        ],
+      },
+      bounds: { left: [393, 580, 481, 543], right: [130, 326, 441, 509] },
+    },
+    {
+      style: "soft-arch" as const,
+      width: 721,
+      eyes: {
+        left: [
+          [412.7, 568.1],
+          [510.2, 580.6],
+        ],
+        right: [
+          [293.4, 548.4],
+          [193.7, 532.2],
+        ],
+      },
+      bounds: { left: [393, 579, 477, 543], right: [132, 326, 428, 506] },
+    },
+  ])(
+    "matches the full eyebrow bounds in the $style reference",
+    ({ style, width, eyes, bounds }) => {
+      const face = faceFixture();
+      for (const side of ["left", "right"] as const)
+        EYE_INDICES[side].forEach((id, i) => {
+          face[id] = {
+            x: eyes[side][i][0] / width,
+            y: eyes[side][i][1] / 1086,
+          };
+        });
+      const brows = makeBrows(face, style, defaultCalibration(), width, 1086);
+      for (const brow of brows) {
+        const x = brow.polygon.map((p) => p.x),
+          y = brow.polygon.map((p) => p.y);
+        const actual = [
+          Math.min(...x),
+          Math.max(...x),
+          Math.min(...y),
+          Math.max(...y),
+        ];
+        actual.forEach((value, i) =>
+          expect(Math.abs(value - bounds[brow.side][i])).toBeLessThan(2),
+        );
+      }
+    },
+  );
+
+  it("keeps the reference shape aligned when the head rolls", () => {
+    const face = faceFixture();
+    const rotate = (p: Point) => ({
+      x: 400 + (p.x - 400) * Math.cos(0.2) - (p.y - 300) * Math.sin(0.2),
+      y: 300 + (p.x - 400) * Math.sin(0.2) + (p.y - 300) * Math.cos(0.2),
+    });
+    const rolled = face.map((p) => {
+      const pixel = rotate({ x: p.x * 800, y: p.y * 600 });
+      return { x: pixel.x / 800, y: pixel.y / 600 };
+    });
+    const before = makeBrows(face, "soft-arch", defaultCalibration(), 800, 600);
+    const after = makeBrows(
+      rolled,
+      "soft-arch",
+      defaultCalibration(),
+      800,
+      600,
+    );
+    before.forEach((brow, side) =>
+      brow.polygon.forEach((point, i) => {
+        const expected = rotate(point);
+        expect(after[side].polygon[i].x).toBeCloseTo(expected.x);
+        expect(after[side].polygon[i].y).toBeCloseTo(expected.y);
+      }),
+    );
   });
 });
 

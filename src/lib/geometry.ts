@@ -6,6 +6,7 @@ import {
   type Calibration,
   type Point,
 } from "./types";
+import { BROW_PROFILES } from "./brow-profiles";
 
 export const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
@@ -13,17 +14,7 @@ export const distance = (a: Point, b: Point) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-// landmark indices run from the inner brow to the tail.
-export const BROW_INDICES = {
-  left: {
-    top: [336, 296, 334, 293, 300],
-    bottom: [285, 295, 282, 283, 276],
-  },
-  right: {
-    top: [107, 66, 105, 63, 70],
-    bottom: [55, 65, 52, 53, 46],
-  },
-} as const;
+export const EYE_INDICES = { left: [362, 263], right: [133, 33] } as const;
 
 export function pointInPolygon(p: Point, polygon: Point[]): boolean {
   let inside = false;
@@ -84,13 +75,14 @@ function makeBrow(
   width: number,
   height: number,
 ): Brow | null {
-  const indices = BROW_INDICES[side];
+  const indices = EYE_INDICES[side];
+  const profile = BROW_PROFILES[style][side];
   const pixel = (i: number) => ({
     x: landmarks[i].x * width,
     y: landmarks[i].y * height,
   });
   if (
-    [...indices.top, ...indices.bottom].some(
+    indices.some(
       (i) =>
         !landmarks[i] ||
         !Number.isFinite(landmarks[i].x) ||
@@ -98,65 +90,67 @@ function makeBrow(
     )
   )
     return null;
-  const top = indices.top.map(pixel),
-    bottom = indices.bottom.map(pixel);
-  const inner = {
-    x: (top[0].x + bottom[0].x) / 2,
-    y: (top[0].y + bottom[0].y) / 2,
-  };
-  const tail = {
-    x: (top[4].x + bottom[4].x) / 2,
-    y: (top[4].y + bottom[4].y) / 2,
-  };
-  const rawLength = distance(inner, tail);
-  if (rawLength < width * 0.025) return null;
-  const angle =
-    Math.atan2(tail.y - inner.y, tail.x - inner.x) +
-    (adjustment.rotation * Math.PI) / 180;
+  const [inner, outer] = indices.map(pixel);
+  const eyeLength = distance(inner, outer);
+  if (eyeLength < width * 0.02) return null;
+  const eyeAngle = Math.atan2(outer.y - inner.y, outer.x - inner.x);
+  const eyeAxis = { x: Math.cos(eyeAngle), y: Math.sin(eyeAngle) };
+  const eyeNormal = { x: -eyeAxis.y, y: eyeAxis.x };
+  if (eyeNormal.y > 0) {
+    eyeNormal.x *= -1;
+    eyeNormal.y *= -1;
+  }
+  const angle = eyeAngle + (adjustment.rotation * Math.PI) / 180;
   const axis = { x: Math.cos(angle), y: Math.sin(angle) };
   const normal = { x: -axis.y, y: axis.x };
   if (normal.y > 0) {
     normal.x *= -1;
     normal.y *= -1;
   }
+  const rawLength = eyeLength * profile.length;
   const length = rawLength * clamp(adjustment.width, 0.9, 1.12);
   const brow: Brow = {
     side,
     origin: {
-      x: inner.x + rawLength * adjustment.x,
-      y: inner.y - rawLength * adjustment.y,
+      x:
+        inner.x +
+        eyeLength *
+          (profile.offset[0] * eyeAxis.x + profile.offset[1] * eyeNormal.x) +
+        rawLength * adjustment.x,
+      y:
+        inner.y +
+        eyeLength *
+          (profile.offset[0] * eyeAxis.y + profile.offset[1] * eyeNormal.y) -
+        rawLength * adjustment.y,
     },
     axis,
     normal,
     length,
     polygon: [],
   };
-  const heights = top.map((p, i) => distance(p, bottom[i]));
-  const baseThickness =
-    clamp(
-      heights.reduce((a, b) => a + b, 0) / heights.length / rawLength,
-      0.11,
-      0.24,
-    ) * clamp(adjustment.thickness, 0.85, 1.25);
-  // keep the arch subtle like the references.
-  const rise =
-    (style === "straight" ? 0.022 : 0.078) +
-    clamp(adjustment.arch, -0.02, 0.035);
-  const upper: Point[] = [],
-    lower: Point[] = [];
-  for (let i = 0; i <= 24; i++) {
-    const u = i / 24;
-    const peak = Math.sin(Math.PI * Math.pow(u, 0.78));
-    const taper = lerp(1, 0.18, Math.pow(u, 2.5));
-    const center = rise * peak;
-    upper.push(
-      fromBrowLocal({ x: u, y: center + (baseThickness * taper) / 2 }, brow),
-    );
-    lower.push(
-      fromBrowLocal({ x: u, y: center - (baseThickness * taper) / 2 }, brow),
-    );
+  const points = profile.contour;
+  // keep the traced outline smooth between points.
+  for (let i = 0; i < points.length; i++) {
+    const a = points[(i + points.length - 1) % points.length];
+    const b = points[i],
+      c = points[(i + 1) % points.length];
+    const d = points[(i + 2) % points.length];
+    for (let step = 0; step < 4; step++) {
+      const t = step / 4;
+      const curve = (axis: 0 | 1) =>
+        0.5 *
+        (2 * b[axis] +
+          (-a[axis] + c[axis]) * t +
+          (2 * a[axis] - 5 * b[axis] + 4 * c[axis] - d[axis]) * t * t +
+          (-a[axis] + 3 * b[axis] - 3 * c[axis] + d[axis]) * t * t * t);
+      const x = curve(0);
+      const y =
+        curve(1) * clamp(adjustment.thickness, 0.85, 1.25) +
+        Math.sin(Math.PI * clamp(x, 0, 1)) *
+          clamp(adjustment.arch, -0.02, 0.035);
+      brow.polygon.push(fromBrowLocal({ x, y }, brow));
+    }
   }
-  brow.polygon = [...upper, ...lower.reverse()];
   return brow;
 }
 

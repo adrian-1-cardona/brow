@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useBrowCamera } from "@/hooks/use-brow-camera";
 import { clamp } from "@/lib/geometry";
+import { BROW_PROFILES } from "@/lib/brow-profiles";
 import {
   type Adjustment,
   type BrowSide,
@@ -28,14 +29,11 @@ import {
 import Modal from "./modal";
 
 function BrowGlyph({ arch = false }: { arch?: boolean }) {
+  const contour = BROW_PROFILES[arch ? "soft-arch" : "straight"].right.contour;
   return (
-    <svg viewBox="0 0 64 24" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 64 28" fill="none" aria-hidden="true">
       <path
-        d={
-          arch
-            ? "M4 17Q22 1 39 8Q49 11 60 18Q45 12 35 12Q20 9 4 20Z"
-            : "M4 12Q28 7 43 10L60 17Q40 13 23 14L4 18Z"
-        }
+        d={`M${contour.map(([x, y]) => `${4 + x * 56},${18 - y * 56}`).join("L")}Z`}
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinejoin="round"
@@ -259,14 +257,36 @@ export default function BrowStudio() {
             {(review || camera.markTip) && live && (
               <div className="review-instruction">
                 <span className="live-dot active" />
-                {camera.markTip
-                  ? "Tap the visible tweezer tip to begin assisted tracking"
-                  : "Tap a stray area outside the red outline to mark it for review"}
+                <span>
+                  {camera.markTip
+                    ? "Tap the visible tweezer tip to begin assisted tracking"
+                    : pending > 0
+                      ? `${pending} marked. Check each area before applying.`
+                      : compare
+                        ? "Mark a stray hair outside the red outline on the left."
+                        : "Tap a stray area outside the red outline to mark it for review"}
+                </span>
+                {pending > 0 && !camera.markTip && (
+                  <button
+                    className="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPatches((old) =>
+                        old.map((patch) => ({ ...patch, verified: true })),
+                      );
+                      setReview(false);
+                      setCompare(true);
+                    }}
+                  >
+                    I checked these — apply
+                  </button>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setReview(false);
                     camera.setMarkTip(false);
+                    if (!verified) setCompare(false);
                   }}
                   aria-label="Exit marking"
                 >
@@ -368,7 +388,7 @@ export default function BrowStudio() {
               disabled={!style || !live}
               onClick={() => {
                 setCompare(!compare);
-                setReview(false);
+                setReview(!compare && verified === 0);
                 camera.setMarkTip(false);
               }}
             >

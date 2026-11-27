@@ -377,8 +377,13 @@ main {
   border: 1px solid #777;
   line-height: 1.5;
   font-size: 11px;
+  flex-wrap: wrap;
 }
-.review-instruction button {
+.review-instruction > span:not(.live-dot) {
+  flex: 1;
+  min-width: 140px;
+}
+.review-instruction > button:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
