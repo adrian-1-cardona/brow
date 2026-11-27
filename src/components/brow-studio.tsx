@@ -1,23 +1,16 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   Camera,
   Check,
-  ChevronDown,
-  CircleHelp,
-  Expand,
   Eye,
   FlipHorizontal2,
   GripVertical,
-  LockKeyhole,
   RotateCcw,
   ScanFace,
   Settings2,
   ShieldCheck,
-  SlidersHorizontal,
-  Sparkles,
   Square,
   Trash2,
   X,
@@ -66,7 +59,6 @@ export default function BrowStudio() {
   const [compare, setCompare] = useState(false);
   const [split, setSplit] = useState(50);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [calibration, setCalibration] =
     useState<Calibration>(defaultCalibration);
   const [calibrationSide, setCalibrationSide] = useState<BrowSide | "both">(
@@ -78,7 +70,6 @@ export default function BrowStudio() {
   const [brush, setBrush] = useState(0.025);
   const [patches, setPatches] = useState<VerifiedPatch[]>([]);
   const [notice, setNotice] = useState("");
-  const [offline, setOffline] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const clearPatches = useCallback(() => setPatches([]), []);
   const addPatch = useCallback(
@@ -104,14 +95,6 @@ export default function BrowStudio() {
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator)
       navigator.serviceWorker.register("/sw.js").catch(() => {});
-    const update = () => setOffline(!navigator.onLine);
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
   }, []);
   useEffect(() => {
     if (!notice) return;
@@ -158,82 +141,38 @@ export default function BrowStudio() {
   return (
     <div className="app-shell">
       <header className="site-header">
-        <Link className="brand" href="/" aria-label="Brow Studio home">
-          <span className="brand-mark">
-            <BrowGlyph />
-          </span>
-          <span>
-            Brow<span className="brand-light">Studio.exe</span>
-          </span>
-        </Link>
+        <h1 className="brand">
+          <BrowGlyph /> Brow Studio
+        </h1>
         <div className="header-actions">
-          <span className="privacy">
-            <LockKeyhole size={13} /> On your device. Always.
-          </span>
-          <button
-            className="icon-button"
-            onClick={() => setHelpOpen(true)}
-            aria-label="How it works"
-          >
-            <CircleHelp size={19} />
-          </button>
+          <div className="tracking-status" role="status">
+            <span className={tracked ? "status-dot on" : "status-dot"} />
+            {statusCopy[camera.status]}
+          </div>
+          {live && (
+            <button
+              className="icon-button"
+              aria-label="Stop camera"
+              onClick={() => {
+                camera.stop();
+                setCompare(false);
+                setReview(false);
+              }}
+            >
+              <Square size={12} fill="currentColor" />
+            </button>
+          )}
           <button
             className="icon-button"
             onClick={() => setSettingsOpen(true)}
             aria-label="Open settings"
           >
-            <Settings2 size={20} />
+            <Settings2 size={18} />
           </button>
         </div>
       </header>
-
       <main>
-        <div className="intro">
-          <div>
-            <span className="eyebrow">A LITTLE GUIDANCE. ALL YOU.</span>
-            <h1>
-              Find your natural shape<span>.</span>
-            </h1>
-          </div>
-          <p>
-            A live mirror. A considered outline.
-            <br />
-            Keep the character in your brows.
-          </p>
-        </div>
         <section className="studio" aria-label="Live eyebrow studio">
-          <div className="studio-topbar">
-            <div className="mirror-title">
-              <span className={live ? "live-dot active" : "live-dot"} /> Your
-              mirror <span className="small-tag">LIVE</span>
-            </div>
-            <div className="tracking-status" role="status">
-              <span className={tracked ? "status-dot on" : "status-dot"} />
-              {statusCopy[camera.status]}
-            </div>
-            <button
-              className="icon-button expand-button"
-              aria-label="Expand mirror"
-              onClick={() => {
-                if (document.fullscreenElement) document.exitFullscreen?.();
-                else if (stageRef.current?.requestFullscreen)
-                  stageRef.current
-                    .requestFullscreen()
-                    .catch(() =>
-                      setNotice(
-                        "Full screen is unavailable. Add this app to your Home Screen for a larger view.",
-                      ),
-                    );
-                else
-                  setNotice(
-                    "For a larger mirror on iPhone or iPad, add Brow Studio to your Home Screen.",
-                  );
-              }}
-            >
-              <Expand size={16} />
-            </button>
-          </div>
-
           <div
             ref={stageRef}
             className={`camera-stage ${review || camera.markTip ? "marking" : ""} ${camera.warning ? "warning-active" : ""}`}
@@ -261,48 +200,21 @@ export default function BrowStudio() {
               />
             </div>
 
-            {live && (
+            {compare && live && (
               <div className="view-labels">
-                <span>
-                  <span className="live-dot active" /> Live mirror
-                </span>
-                {compare && (
-                  <span>
-                    Proposed result <Sparkles size={12} />
-                  </span>
-                )}
+                <span>Live mirror</span>
+                <span>Proposed · {verified} verified</span>
               </div>
             )}
-
             {!live && (
               <div className="camera-empty">
-                <div className="camera-symbol">
-                  <ScanFace size={39} strokeWidth={1} />
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <span className="eyebrow">YOUR OWN POINT OF VIEW</span>
-                <h2>
-                  {camera.status === "error"
-                    ? "Let’s reconnect."
-                    : "Meet your mirror."}
-                </h2>
-                <p>
-                  {camera.error ||
-                    "Good light, a relaxed face, and a little perspective.\nYour camera stays entirely on this device."}
-                </p>
+                {camera.error && <p>{camera.error}</p>}
                 <button className="button light" onClick={() => camera.start()}>
                   <Camera size={17} />
                   {camera.status === "error"
                     ? "Try camera again"
                     : "Enable camera"}
-                  <ArrowRight size={16} />
                 </button>
-                <span className="camera-footnote">
-                  <LockKeyhole size={11} /> No photos saved. No uploads.
-                </span>
               </div>
             )}
 
@@ -336,10 +248,7 @@ export default function BrowStudio() {
               </div>
             )}
             {live && !style && (
-              <div className="stage-prompt">
-                <span>01</span> Choose a shape below to reveal your guide{" "}
-                <ChevronDown size={14} />
-              </div>
+              <div className="stage-prompt">Choose a shape below.</div>
             )}
             {live && style && !review && !camera.markTip && (
               <div className="stage-note">
@@ -428,118 +337,46 @@ export default function BrowStudio() {
           </div>
 
           <div className="studio-controls">
-            <div className="shape-control">
-              <span className="control-label">
-                01 <span>CHOOSE YOUR SHAPE</span>
-              </span>
-              <div
-                className="shape-options"
-                role="group"
-                aria-label="Eyebrow style"
-              >
-                <button
-                  className={`shape-option ${style === "straight" ? "selected" : ""}`}
-                  aria-pressed={style === "straight"}
-                  onClick={() => chooseStyle("straight")}
-                >
-                  <BrowGlyph />
-                  <span>
-                    Straight <small>Recommended</small>
-                  </span>
-                  {style === "straight" && <Check size={15} />}
-                </button>
-                <button
-                  className={`shape-option ${style === "soft-arch" ? "selected" : ""}`}
-                  aria-pressed={style === "soft-arch"}
-                  onClick={() => chooseStyle("soft-arch")}
-                >
-                  <BrowGlyph arch />
-                  <span>Soft Arch</span>
-                  {style === "soft-arch" && <Check size={15} />}
-                </button>
-              </div>
-            </div>
-            <div className="comparison-control">
-              <span className="control-label">
-                02 <span>SEE THE POSSIBILITIES</span>
-              </span>
-              <button
-                className="button compare-button"
-                disabled={!style || !live}
-                onClick={() => {
-                  setCompare(!compare);
-                  setReview(false);
-                  camera.setMarkTip(false);
-                }}
-              >
-                <FlipHorizontal2 size={17} />
-                {compare ? "Close comparison" : "View proposed result"}
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <div className="below-mirror">
-          <p>
-            <ShieldCheck size={15} />
-            <span>
-              {style
-                ? "Preserve inside. Review outside. Make small, considered changes."
-                : "Start with your camera, then choose a shape. No guide appears until you choose."}
-            </span>
-          </p>
-          <div>
-            {live && (
-              <button
-                className="text-button"
-                onClick={() => {
-                  camera.stop();
-                  setCompare(false);
-                  setReview(false);
-                }}
-              >
-                <Square size={11} fill="currentColor" /> Stop camera
-              </button>
-            )}
-            <button
-              className="text-button"
-              onClick={() => setSettingsOpen(true)}
+            <div
+              className="shape-options"
+              role="group"
+              aria-label="Eyebrow style"
             >
-              <SlidersHorizontal size={14} /> Fine-tune
-            </button>
-          </div>
-        </div>
-        {compare && (
-          <div className="comparison-note">
-            <Eye size={17} />
-            <div>
-              <strong>
-                {verified
-                  ? `${verified} verified ${verified === 1 ? "area" : "areas"} in your live preview`
-                  : "Your preview starts exactly as you are."}
-              </strong>
-              <p>
-                Only manually verified stray areas can change. Everything inside
-                the outline is preserved.
-              </p>
+              <button
+                className={`shape-option ${style === "straight" ? "selected" : ""}`}
+                aria-pressed={style === "straight"}
+                onClick={() => chooseStyle("straight")}
+              >
+                <BrowGlyph />
+                <span>
+                  Straight <small>Recommended</small>
+                </span>
+                {style === "straight" && <Check size={15} />}
+              </button>
+              <button
+                className={`shape-option ${style === "soft-arch" ? "selected" : ""}`}
+                aria-pressed={style === "soft-arch"}
+                onClick={() => chooseStyle("soft-arch")}
+              >
+                <BrowGlyph arch />
+                <span>Soft Arch</span>
+                {style === "soft-arch" && <Check size={15} />}
+              </button>
             </div>
             <button
-              className="text-button"
+              className="button compare-button"
+              disabled={!style || !live}
               onClick={() => {
-                setSettingsOpen(true);
+                setCompare(!compare);
+                setReview(false);
+                camera.setMarkTip(false);
               }}
             >
-              Review stray areas <ArrowRight size={14} />
+              <FlipHorizontal2 size={17} />
+              {compare ? "Close comparison" : "View proposed result"}
             </button>
           </div>
-        )}
-        <footer className="site-footer">
-          <span>Made for your natural brows.</span>
-          <span>
-            <LockKeyhole size={11} /> Private by design {offline && "· Offline"}
-          </span>
-        </footer>
+        </section>
       </main>
 
       <div className="toast-region" role="status" aria-live="polite">
@@ -556,13 +393,9 @@ export default function BrowStudio() {
       <Modal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        title="A more personal fit"
+        title="Settings"
         drawer
       >
-        <p className="modal-intro">
-          Small adjustments, made to your face. Check the outline in even light
-          before grooming.
-        </p>
         <div className="settings-section">
           <div className="section-label">
             <ScanFace size={16} />
@@ -660,7 +493,7 @@ export default function BrowStudio() {
           </label>
           <button
             className="button dark full"
-            disabled={!style || !tracked}
+            disabled={!style || !live}
             onClick={() => {
               setReview(true);
               setCompare(false);
@@ -811,7 +644,7 @@ export default function BrowStudio() {
             </p>
             <button
               className="button full"
-              disabled={!style || !tracked}
+              disabled={!style || !live}
               onClick={() => {
                 camera.setMarkTip(true);
                 setReview(false);
@@ -824,79 +657,6 @@ export default function BrowStudio() {
             </button>
           </div>
         </div>
-        <div className="settings-section install-note">
-          <LockKeyhole size={17} />
-          <p>
-            Your camera is never uploaded or recorded. Add to Home Screen from
-            your browser’s share menu for an app-like mirror. First load
-            requires internet; loaded assets are available offline.
-          </p>
-        </div>
-      </Modal>
-
-      <Modal
-        open={helpOpen}
-        onClose={() => setHelpOpen(false)}
-        title="A considered approach"
-      >
-        <div className="help-steps">
-          <div>
-            <span>01</span>
-            <div>
-              <h3>Find your light.</h3>
-              <p>
-                Enable the camera, face it straight on, and relax your
-                expression. Soft, even light makes tracking more reliable.
-              </p>
-            </div>
-          </div>
-          <div>
-            <span>02</span>
-            <div>
-              <h3>Choose your shape.</h3>
-              <p>
-                Straight is our starting recommendation; Soft Arch adds a subtle
-                lift. The thin red outline marks the brow to preserve. Fine-tune
-                its fit in settings.
-              </p>
-            </div>
-          </div>
-          <div>
-            <span>03</span>
-            <div>
-              <h3>Keep what makes you, you.</h3>
-              <p>
-                Everything inside the red outline stays. Outside areas are only
-                candidates: inspect them yourself. Use settings to mark and
-                verify small stray areas for a live preview.
-              </p>
-            </div>
-          </div>
-          <div>
-            <span>04</span>
-            <div>
-              <h3>Compare in real time.</h3>
-              <p>
-                Open the proposed result and drag the divider with a mouse or
-                finger. Both views show the same camera frame. No verified marks
-                means an unchanged preview.
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="help-callout">
-          <ShieldCheck size={20} />
-          <p>
-            <strong>Stay outside the red outline.</strong>
-            <br />
-            Tracking is a visual aid and can be inaccurate. Proximity warnings
-            are experimental. Stop and check whenever the outline shifts.
-          </p>
-        </div>
-        <button className="button dark full" onClick={() => setHelpOpen(false)}>
-          Back to your mirror
-          <ArrowRight size={16} />
-        </button>
       </Modal>
     </div>
   );

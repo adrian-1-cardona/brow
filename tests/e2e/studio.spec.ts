@@ -88,7 +88,7 @@ test("starts without a style, keeps advanced controls in settings, and fits the 
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Meet your mirror." }),
+    page.getByRole("button", { name: "Enable camera" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /Straight/ })).toHaveAttribute(
     "aria-pressed",
@@ -107,9 +107,7 @@ test("starts without a style, keeps advanced controls in settings, and fits the 
     fullPage: true,
   });
   await page.getByRole("button", { name: "Open settings" }).click();
-  await expect(
-    page.getByRole("dialog", { name: "A more personal fit" }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
   await expect(
     page.getByRole("slider", { name: "Length", exact: true }),
   ).toBeDisabled();
@@ -125,10 +123,6 @@ test("starts without a style, keeps advanced controls in settings, and fits the 
     "aria-pressed",
     "false",
   );
-  await page.getByRole("button", { name: "How it works" }).click();
-  await expect(
-    page.getByText("Stay outside the red outline.", { exact: true }),
-  ).toBeVisible();
 });
 
 test("provides an installable manifest and reloads the cached shell offline", async ({
@@ -159,7 +153,7 @@ test("provides an installable manifest and reloads the cached shell offline", as
   await context.setOffline(true);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Meet your mirror." }),
+    page.getByRole("button", { name: "Enable camera" }),
   ).toBeVisible();
   await context.setOffline(false);
 });
@@ -360,6 +354,12 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   );
   await page.getByRole("button", { name: "Open settings" }).click();
   await page.getByRole("button", { name: "Mark areas on live mirror" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Settings" }),
+  ).not.toBeVisible();
+  await expect(page.locator(".tracking-status")).toHaveText(
+    "Face tracking active",
+  );
   const stage = page.getByTestId("camera-stage"),
     rect = await stage.boundingBox();
   const clickLocal = async (u: number, v: number) => {
@@ -386,9 +386,7 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   ).toBeVisible();
   await page.getByRole("checkbox", { name: "I checked this area" }).check();
   await page.getByRole("button", { name: "View 1 verified area" }).click();
-  await expect(
-    page.getByText("1 verified area in your live preview"),
-  ).toBeVisible();
+  await expect(page.getByText("Proposed · 1 verified")).toBeVisible();
   await page.getByRole("button", { name: "Open settings" }).click();
   await page.getByRole("button", { name: "Mark tweezer tip" }).click();
   await clickLocal(0.4, 0);
@@ -407,9 +405,7 @@ test("maps real face landmarks, protects the outline, verifies a mark, and pause
   await expect(page.locator(".tracking-status")).toHaveText(
     "More light needed",
   );
-  await expect(
-    page.getByText("Your preview starts exactly as you are."),
-  ).toBeVisible();
+  await expect(page.getByText("Proposed · 0 verified")).toBeVisible();
   await page.getByRole("button", { name: "Stop camera" }).click();
 });
 

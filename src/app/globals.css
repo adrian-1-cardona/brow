@@ -83,7 +83,6 @@ input {
     4px 4px #003f3f;
 }
 .site-header,
-.studio-topbar,
 .modal-heading {
   display: flex;
   align-items: center;
@@ -102,18 +101,14 @@ input {
   color: #fff;
 }
 .brand {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
   font-weight: bold;
 }
-.brand-light {
-  margin-left: 4px;
-}
-.brand-mark,
-.brand-mark svg {
-  display: block;
+.brand > svg {
   width: 27px;
   height: 18px;
 }
@@ -121,13 +116,6 @@ input {
   display: flex;
   align-items: center;
   gap: 5px;
-}
-.privacy {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 12px;
-  font-size: 10px;
 }
 .icon-button {
   width: 28px;
@@ -143,49 +131,11 @@ input {
   height: 16px;
 }
 main {
-  padding: 0 13px;
-}
-.intro {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 21px 3px 18px;
-}
-.eyebrow {
-  color: var(--muted);
-  font-size: 9px;
-  letter-spacing: 1px;
-}
-.intro h1 {
-  font-size: 23px;
-  line-height: 1.2;
-  margin: 6px 0 0;
-}
-.intro h1 > span {
-  color: var(--blue);
-}
-.intro > p {
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 0;
-  font-size: 11px;
+  padding: 5px 0 0;
 }
 .studio {
   padding: 3px;
   box-shadow: var(--sunken);
-}
-.studio-topbar {
-  min-height: 32px;
-  padding: 3px 6px 3px 9px;
-  background: var(--light-blue);
-}
-.mirror-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  font-weight: bold;
 }
 .live-dot,
 .status-dot {
@@ -198,14 +148,6 @@ main {
 .live-dot.active {
   background: #ef3d3d;
 }
-.small-tag {
-  padding: 2px 4px;
-  border: 1px solid #6a8cac;
-  color: #244865;
-  font:
-    8px "Courier New",
-    monospace;
-}
 .tracking-status {
   display: flex;
   align-items: center;
@@ -215,10 +157,6 @@ main {
 }
 .status-dot.on {
   background: #008000;
-}
-.expand-button {
-  width: 24px;
-  height: 24px;
 }
 .camera-stage {
   position: relative;
@@ -263,60 +201,6 @@ main {
   background: #070b10;
   color: #f4f4f4;
 }
-.camera-symbol {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 76px;
-  height: 76px;
-  color: #a6caec;
-  margin-bottom: 25px;
-}
-.camera-symbol > i {
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  border: 0 solid #5580a4;
-}
-.camera-symbol > i:nth-of-type(1) {
-  top: 0;
-  left: 0;
-  border-top-width: 2px;
-  border-left-width: 2px;
-}
-.camera-symbol > i:nth-of-type(2) {
-  top: 0;
-  right: 0;
-  border-top-width: 2px;
-  border-right-width: 2px;
-}
-.camera-symbol > i:nth-of-type(3) {
-  bottom: 0;
-  left: 0;
-  border-bottom-width: 2px;
-  border-left-width: 2px;
-}
-.camera-symbol > i:nth-of-type(4) {
-  bottom: 0;
-  right: 0;
-  border-bottom-width: 2px;
-  border-right-width: 2px;
-}
-.camera-empty .eyebrow {
-  color: #92aac0;
-  font:
-    10px "Courier New",
-    monospace;
-  letter-spacing: 1.5px;
-}
-.camera-empty h2 {
-  font:
-    bold 30px "Courier New",
-    monospace;
-  margin: 13px 0 14px;
-  letter-spacing: -1px;
-}
 .camera-empty > p {
   max-width: 390px;
   margin: 0 0 23px;
@@ -339,39 +223,17 @@ main {
 .button.light {
   min-width: 190px;
 }
-.button.light > svg:last-child {
-  margin-left: 14px;
-}
 .button.dark {
   font-weight: bold;
 }
 .button.full {
   width: 100%;
 }
-.camera-footnote {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 14px;
-  color: #8495a7;
-  font-size: 9px;
-}
 .studio-controls {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 22px;
-  padding: 17px 13px 15px;
-}
-.control-label {
-  display: flex;
-  gap: 7px;
-  margin-bottom: 10px;
-  font-size: 9px;
-  color: var(--blue);
-}
-.control-label > span {
-  color: var(--muted);
-  letter-spacing: 0.5px;
+  gap: 12px;
+  padding: 12px 9px 9px;
 }
 .shape-options {
   display: flex;
@@ -413,43 +275,11 @@ main {
 .compare-button {
   min-height: 48px;
 }
-.compare-button > svg:first-child,
-.compare-button > svg:last-child {
+.compare-button > svg:first-child {
   color: #214d7d;
 }
 .compare-button:disabled svg {
   color: #888;
-}
-.compare-button > svg:last-child {
-  margin-left: 9px;
-}
-.comparison-control {
-  padding-left: 22px;
-  border-left: 1px solid #999;
-}
-.below-mirror {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  margin: 12px 1px;
-}
-.below-mirror > p {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
-.below-mirror > p svg {
-  color: #234c79;
-}
-.below-mirror > div {
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
 .text-button {
   display: inline-flex;
@@ -459,26 +289,6 @@ main {
   min-height: 30px;
   white-space: nowrap;
   font-size: 10px;
-}
-.site-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 0 0 9px;
-  font-size: 10px;
-  color: #444;
-}
-.site-footer > span {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  padding: 6px 8px;
-  box-shadow: var(--sunken);
-}
-.site-footer > span:last-child {
-  flex: none;
-  min-width: 190px;
 }
 .view-labels {
   position: absolute;
@@ -518,9 +328,6 @@ main {
   font-size: 10px;
   white-space: nowrap;
   pointer-events: none;
-}
-.stage-prompt > span {
-  color: #a6caec;
 }
 .tracking-hint {
   position: absolute;
@@ -650,29 +457,6 @@ main {
   font-size: 10px;
   pointer-events: none;
 }
-.comparison-note {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px;
-  margin: 12px 0;
-  box-shadow: var(--sunken);
-}
-.comparison-note > svg {
-  color: var(--blue);
-}
-.comparison-note strong {
-  font-size: 11px;
-}
-.comparison-note p {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.6;
-  margin: 5px 0 0;
-}
-.comparison-note > button {
-  margin-left: auto;
-}
 .toast-region {
   position: fixed;
   bottom: max(24px, env(safe-area-inset-bottom));
@@ -753,12 +537,6 @@ main {
   width: 25px;
   height: 24px;
   flex-shrink: 0;
-}
-.modal-intro {
-  margin: 0 0 20px;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.8;
 }
 .settings-section {
   padding: 19px 0;
@@ -882,16 +660,6 @@ main {
   font-size: 10px;
   margin: 12px 0;
 }
-.install-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  color: #555;
-}
-.install-note p {
-  font-size: 10px;
-  margin: 0;
-}
 .review-list {
   display: flex;
   flex-direction: column;
@@ -923,73 +691,12 @@ main {
   justify-content: space-between;
   margin: 9px 0;
 }
-.help-steps > div {
-  display: flex;
-  gap: 15px;
-  margin-bottom: 23px;
-}
-.help-steps > div > span {
-  align-self: flex-start;
-  color: #fff;
-  background: var(--blue);
-  padding: 4px;
-  font:
-    11px "Courier New",
-    monospace;
-}
-.help-steps h3 {
-  font-size: 13px;
-  margin: 3px 0 8px;
-}
-.help-steps p {
-  font-size: 11px;
-  line-height: 1.8;
-  color: var(--muted);
-  margin: 0;
-}
-.help-callout {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 13px;
-  margin-bottom: 19px;
-  background: #ffffdd;
-  box-shadow: var(--sunken);
-}
-.help-callout > svg {
-  color: #816716;
-}
-.help-callout p {
-  font-size: 11px;
-  line-height: 1.8;
-  margin: 0;
-}
-.camera-stage:fullscreen {
-  width: 100vw;
-  height: 100dvh;
-  background: #070b10;
-}
 @media (max-width: 760px) {
   body {
     padding: 10px 8px;
   }
   main {
-    padding: 0 7px;
-  }
-  .privacy {
-    display: none;
-  }
-  .intro {
-    padding: 18px 2px;
-  }
-  .intro h1 {
-    font-size: 21px;
-  }
-  .intro > p {
-    display: none;
-  }
-  .studio-topbar {
-    gap: 7px;
+    padding-top: 5px;
   }
   .studio-controls {
     grid-template-columns: 1fr;
@@ -1001,53 +708,11 @@ main {
     min-width: 0;
     padding: 9px 11px;
   }
-  .comparison-control {
-    padding: 0;
-    border: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .comparison-control .control-label {
-    max-width: 100px;
-    font-size: 8px;
-    line-height: 1.6;
-    margin: 0;
-  }
   .compare-button {
     min-height: 42px;
     font-size: 10px;
     padding: 10px;
     gap: 7px;
-  }
-  .compare-button > svg:last-child {
-    margin-left: 0;
-  }
-  .below-mirror {
-    align-items: flex-start;
-  }
-  .below-mirror > p {
-    max-width: 240px;
-  }
-  .below-mirror > div {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .site-footer {
-    font-size: 9px;
-  }
-  .site-footer > span:last-child {
-    min-width: 0;
-  }
-  .comparison-note {
-    flex-wrap: wrap;
-  }
-  .comparison-note > div {
-    flex: 1;
-  }
-  .comparison-note > button {
-    margin-left: 29px;
   }
 }
 @media (max-width: 480px) {
@@ -1059,36 +724,12 @@ main {
     gap: 6px;
     font-size: 12px;
   }
-  .brand-mark,
-  .brand-mark svg {
-    width: 23px;
-  }
   .header-actions .icon-button {
     width: 33px;
     height: 32px;
   }
-  .eyebrow {
-    font-size: 8px;
-  }
-  .intro h1 {
-    font-size: 20px;
-  }
-  .studio-topbar {
-    min-height: 35px;
-    padding-left: 6px;
-  }
-  .mirror-title {
-    font-size: 10px;
-    gap: 5px;
-  }
-  .small-tag {
-    display: none;
-  }
   .tracking-status {
     font-size: 9px;
-  }
-  .expand-button {
-    display: none;
   }
   .camera-stage {
     height: 400px;
@@ -1096,23 +737,8 @@ main {
   .camera-empty {
     padding: 22px 15px;
   }
-  .camera-symbol {
-    width: 66px;
-    height: 66px;
-    margin-bottom: 23px;
-  }
-  .camera-empty h2 {
-    font-size: 26px;
-  }
-  .camera-empty .eyebrow {
-    font-size: 8px;
-    letter-spacing: 1px;
-  }
   .camera-empty > p {
     font-size: 11px;
-  }
-  .camera-footnote {
-    font-size: 8px;
   }
   .shape-option {
     gap: 7px;
@@ -1125,22 +751,9 @@ main {
   .shape-option small {
     font-size: 8px;
   }
-  .below-mirror {
-    gap: 9px;
-  }
-  .below-mirror > p {
-    font-size: 9px;
-  }
-  .below-mirror > p > svg {
-    width: 13px;
-  }
   .text-button {
     font-size: 9px;
     padding: 7px;
-  }
-  .site-footer > span {
-    padding: 6px;
-    font-size: 8px;
   }
   .view-labels {
     top: 10px;
