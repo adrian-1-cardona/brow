@@ -259,16 +259,34 @@ export class LandmarkSmoother {
   reset() {
     this.previous = [];
   }
-  update(points: Point[], stability: number): Point[] {
+  update(points: Point[], stability: number, aspect = 1): Point[] {
     if (points.length !== this.previous.length || !points.length) {
       this.previous = points.map((p) => ({ ...p }));
       return this.previous;
     }
+    // Follow head translation, scale and roll immediately; smooth only the
+    // remaining landmark noise in the moving face's coordinate system.
+    let align = (p: Point): Point => p;
+    const a = this.previous[33], b = this.previous[263];
+    const nextA = points[33], nextB = points[263];
+    if (a && b && nextA && nextB) {
+      const dx = (b.x - a.x) * aspect, dy = b.y - a.y;
+      const denominator = dx * dx + dy * dy;
+      if (denominator > 1e-6) {
+        const nx = (nextB.x - nextA.x) * aspect, ny = nextB.y - nextA.y;
+        const real = (nx * dx + ny * dy) / denominator;
+        const imaginary = (ny * dx - nx * dy) / denominator;
+        align = (p) => ({
+          x: nextA.x + (real * (p.x - a.x) * aspect - imaginary * (p.y - a.y)) / aspect,
+          y: nextA.y + imaginary * (p.x - a.x) * aspect + real * (p.y - a.y),
+        });
+      }
+    }
     this.previous = points.map((p, i) => {
-      const old = this.previous[i];
+      const old = align(this.previous[i]);
       const movement = distance(p, old);
       // smooth small jitters without lagging behind bigger moves.
-      const alpha = clamp(1 - stability + movement * 16, 0.18, 0.9);
+      const alpha = clamp(1 - stability + movement * 64, 0.18, 1);
       return { x: lerp(old.x, p.x, alpha), y: lerp(old.y, p.y, alpha) };
     });
     return this.previous;

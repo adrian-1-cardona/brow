@@ -32,6 +32,7 @@ type CameraOptions = {
   stability: number;
   hands: boolean;
   preview: boolean;
+  previewOutline: boolean;
   review: boolean;
   brush: number;
   patches: VerifiedPatch[];
@@ -181,6 +182,11 @@ export function useBrowCamera(options: CameraOptions) {
       if (!context || !original || !proposed)
         throw new Error("This browser could not create the camera preview.");
       frameRef.current = frame;
+      // Keep each tracking result with the exact image the worker analyzed.
+      const submittedFrame = document.createElement("canvas");
+      const trackedFrame = document.createElement("canvas");
+      const submittedCtx = submittedFrame.getContext("2d")!;
+      const trackedCtx = trackedFrame.getContext("2d")!;
       for (const canvas of [original, proposed]) {
         canvas.width = frame.width;
         canvas.height = frame.height;
@@ -234,12 +240,16 @@ export function useBrowCamera(options: CameraOptions) {
           busy = false;
           elapsed = message.elapsed;
           // skip stale results so the outline stays with the live frame.
-          if (performance.now() - message.timestamp > 350) {
+          if (performance.now() - message.timestamp > 280 ||
+            submittedFrame.width !== frame.width || submittedFrame.height !== frame.height) {
             face = [];
             goodFrames = 0;
             return;
           }
-          face = smoother.update(message.face, optionsRef.current.stability);
+          trackedFrame.width = submittedFrame.width;
+          trackedFrame.height = submittedFrame.height;
+          trackedCtx.drawImage(submittedFrame, 0, 0);
+          face = smoother.update(message.face, optionsRef.current.stability, frame.width / frame.height);
           faceTime = message.timestamp;
           goodFrames = face.length ? goodFrames + 1 : 0;
           if (message.hands.length) {
@@ -307,6 +317,10 @@ export function useBrowCamera(options: CameraOptions) {
           rightEye > 0 &&
           Math.max(leftEye, rightEye) / Math.min(leftEye, rightEye) < 1.85;
         const safe = fresh && light >= 42 && frontFacing;
+        if (safe) {
+          context.drawImage(trackedFrame, 0, 0);
+          pixels = null;
+        }
         faceGood.current = safe;
         if (!safe && trackingWasGood) {
           settings.clearPatches();
@@ -336,6 +350,8 @@ export function useBrowCamera(options: CameraOptions) {
           proposedCtx.putImageData(image, 0, 0);
         }
         outline(originalCtx, brows, Math.max(1.25, frame.width / 720));
+        if (settings.previewOutline)
+          outline(proposedCtx, brows, Math.max(1.25, frame.width / 720));
         if (settings.review)
           drawPatchMarkers(originalCtx, brows, settings.patches);
         if (now - lastTip > 85) {
@@ -399,11 +415,16 @@ export function useBrowCamera(options: CameraOptions) {
           );
           lastUi = now;
         }
-        const interval = Math.max(settings.hands ? 95 : 65, elapsed * 1.35);
+        const interval = Math.max(settings.hands ? 85 : 40, elapsed * 1.1);
         if (ready && !busy && now - lastSubmit >= interval) {
           busy = true;
           lastSubmit = now;
-          createImageBitmap(frame)
+          if (submittedFrame.width !== frame.width || submittedFrame.height !== frame.height) {
+            submittedFrame.width = frame.width;
+            submittedFrame.height = frame.height;
+          }
+          submittedCtx.drawImage(video, 0, 0, frame.width, frame.height);
+          createImageBitmap(submittedFrame)
             .then((bitmap) => {
               if (cancelled) {
                 bitmap.close();

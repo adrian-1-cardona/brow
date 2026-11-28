@@ -61,6 +61,7 @@ const previewCopy = {
 export default function BrowStudio() {
   const [style, setStyle] = useState<BrowStyle | null>(null);
   const [compare, setCompare] = useState(false);
+  const [finishedLook, setFinishedLook] = useState(false);
   const [split, setSplit] = useState(50);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [calibration, setCalibration] =
@@ -86,6 +87,7 @@ export default function BrowStudio() {
     stability,
     hands,
     preview: compare,
+    previewOutline: compare && finishedLook,
     review,
     brush,
     patches,
@@ -193,7 +195,7 @@ export default function BrowStudio() {
             <div
               className="proposed-layer"
               style={{
-                clipPath: `inset(0 0 0 ${split}%)`,
+                clipPath: finishedLook ? "inset(0)" : `inset(0 0 0 ${split}%)`,
                 visibility: compare ? "visible" : "hidden",
               }}
             >
@@ -207,7 +209,7 @@ export default function BrowStudio() {
 
             {compare && live && (
               <div className="view-labels">
-                <span>Live mirror</span>
+                <span>{finishedLook ? "Finished look · outline stays" : "Live mirror"}</span>
                 <span>{previewCopy[camera.previewStatus]}</span>
               </div>
             )}
@@ -287,6 +289,7 @@ export default function BrowStudio() {
                       );
                       setReview(false);
                       setCompare(true);
+                      setFinishedLook(false);
                     }}
                   >
                     I checked these — apply
@@ -305,7 +308,7 @@ export default function BrowStudio() {
                 </button>
               </div>
             )}
-            {compare && (
+            {compare && !finishedLook && (
               <>
                 <div className="split-line" style={{ left: `${split}%` }} />
                 <div
@@ -394,11 +397,25 @@ export default function BrowStudio() {
                 {style === "soft-arch" && <Check size={15} />}
               </button>
             </div>
+              <button
+                className="button"
+                disabled={!style || !live}
+                aria-pressed={compare && finishedLook}
+                onClick={() => {
+                  setFinishedLook(!(compare && finishedLook));
+                  setCompare(true);
+                  setReview(false);
+                  camera.setMarkTip(false);
+                }}
+              >
+                {compare && finishedLook ? "Show comparison" : "Finished look"}
+              </button>
             <button
               className="button compare-button"
               disabled={!style || !live}
               onClick={() => {
                 setCompare(!compare);
+                setFinishedLook(false);
                 setReview(false);
                 camera.setMarkTip(false);
               }}
@@ -595,6 +612,7 @@ export default function BrowStudio() {
               className="button dark full"
               onClick={() => {
                 setCompare(true);
+                setFinishedLook(false);
                 setReview(false);
                 setSettingsOpen(false);
               }}

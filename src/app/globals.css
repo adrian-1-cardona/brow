@@ -231,7 +231,7 @@ main {
 }
 .studio-controls {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 12px;
   padding: 12px 9px 9px;
 }

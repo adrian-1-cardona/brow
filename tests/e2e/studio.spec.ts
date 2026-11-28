@@ -274,6 +274,13 @@ test("runs the real vision worker, compares synchronized live frames, drags by p
     return a.width > 0 && a.toDataURL() === b.toDataURL();
   });
   expect(synchronized).toBe(true);
+  await page.getByRole("button", { name: "Finished look", exact: true }).click();
+  await expect(divider).not.toBeVisible();
+  await expect(page.locator(".proposed-layer")).toHaveCSS("clip-path", "inset(0px)");
+  await expect(page.getByText("Finished look · outline stays", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Show comparison" }).click();
+  await expect(divider).toBeVisible();
   const first = await page
     .getByTestId("original-canvas")
     .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
@@ -478,6 +485,17 @@ test("automatically previews real eyebrow pixels, protects the outline, supports
     path: `/tmp/brow-studio-auto-${test.info().project.name}.png`,
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Finished look", exact: true }).click();
+  await expect(page.getByRole("slider", { name: "Live and proposed comparison divider" })).not.toBeVisible();
+  await expect.poll(() => page.getByTestId("proposed-canvas").evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let red = 0;
+    for (let i = 0; i < pixels.length; i += 4)
+      if (pixels[i] > 220 && pixels[i + 1] < 100 && pixels[i + 2] < 120) red++;
+    return red;
+  })).toBeGreaterThan(30);
+  await page.screenshot({ path: `/tmp/brow-studio-finished-${test.info().project.name}.png`, fullPage: true });
+  await page.getByRole("button", { name: "Show comparison" }).click();
   await page.getByRole("button", { name: /Soft Arch/ }).click();
   await expect(
     page.getByRole("button", { name: "Close comparison" }),

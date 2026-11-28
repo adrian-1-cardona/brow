@@ -325,6 +325,21 @@ describe("camera coordinate transformations", () => {
 });
 
 describe("tracking stabilization", () => {
+  it("follows whole-face translation, scale and roll without smoothing lag", () => {
+    const smoother = new LandmarkSmoother();
+    const face = faceFixture();
+    smoother.update(face, 0.9);
+    const moved = face.map(p => ({
+      x: 0.55 + 1.1 * ((p.x - 0.5) * Math.cos(0.1) - (p.y - 0.5) * Math.sin(0.1)),
+      y: 0.53 + 1.1 * ((p.x - 0.5) * Math.sin(0.1) + (p.y - 0.5) * Math.cos(0.1)),
+    }));
+    const actual = smoother.update(moved, 0.9);
+    for (const indices of Object.values(BROW_INDICES))
+      for (const id of [...indices.upper, ...indices.lower]) {
+        expect(actual[id].x).toBeCloseTo(moved[id].x, 8);
+        expect(actual[id].y).toBeCloseTo(moved[id].y, 8);
+      }
+  });
   it("attenuates jitter and resets immediately after tracking loss", () => {
     const smoother = new LandmarkSmoother();
     smoother.update([{ x: 0.5, y: 0.5 }], 0.8);
