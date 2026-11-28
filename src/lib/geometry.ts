@@ -149,17 +149,17 @@ function makeBrow(
         return {
           x:
             p.x +
-            observedLength * (observedNormal.x * 0.045 + observedAxis.x * edge),
+            observedLength * (observedNormal.x * 0.09 + observedAxis.x * edge),
           y:
             p.y +
-            observedLength * (observedNormal.y * 0.045 + observedAxis.y * edge),
+            observedLength * (observedNormal.y * 0.09 + observedAxis.y * edge),
         };
       }),
       ...lower
         .reverse()
         .map((p) => ({
-          x: p.x - observedNormal.x * observedLength * 0.06,
-          y: p.y - observedNormal.y * observedLength * 0.06,
+          x: p.x - observedNormal.x * observedLength * 0.13,
+          y: p.y - observedNormal.y * observedLength * 0.13,
         })),
     ],
   };

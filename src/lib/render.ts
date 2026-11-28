@@ -9,6 +9,9 @@ import {
 } from "./geometry";
 import type { Brow, Point, VerifiedPatch } from "./types";
 
+type SkinDonor = { near: number[]; far: number[]; boundary: number };
+type PreviewColumn = { source: number[]; skin: Map<boolean, SkinDonor> };
+
 function rowSpans(polygon: Point[], y: number): number[] {
   const spans: number[] = [];
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -72,8 +75,80 @@ export function applyStylePreview(
       });
     const sourceColumns = columns(brow.sourcePolygon),
       targetColumns = columns(brow.polygon);
-    const protection = Math.max(0.75, brow.length * 0.008);
-    const feather = Math.max(1, brow.length * 0.018);
+    const columnCache = new Map<number, PreviewColumn>();
+    const sampleSkin = (u: number, v: number): number[] | null => {
+      const p = fromBrowLocal({ x: u, y: v }, brow);
+      const samples: number[][] = [];
+      const radius = Math.max(2, Math.round(brow.length * 0.025));
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -radius; dx <= radius; dx++) {
+          const x = Math.round(p.x) + dx,
+            y = Math.round(p.y) + dy;
+          if (x < 0 || x >= width || y < 0 || y >= height) continue;
+          const i = (y * width + x) * 4;
+          samples.push([original[i], original[i + 1], original[i + 2]]);
+        }
+      if (samples.length < 5) return null;
+      samples.sort((a, b) => luminance(a) - luminance(b));
+      const middle = samples.slice(
+        Math.floor(samples.length * 0.25),
+        Math.ceil(samples.length * 0.75),
+      );
+      return [0, 1, 2].map(
+        (c) => middle.reduce((sum, color) => sum + color[c], 0) / middle.length,
+      );
+    };
+    const firstColumn = Math.floor(
+      Math.min(...sourceColumns.map((p) => p.y)) * brow.length,
+    );
+    const lastColumn = Math.ceil(
+      Math.max(...sourceColumns.map((p) => p.y)) * brow.length,
+    );
+    for (let id = firstColumn; id <= lastColumn; id++) {
+      const u = id / brow.length;
+      const source = rowSpans(sourceColumns, u);
+      if (!source.length) continue;
+      const bounds = [...source, ...rowSpans(targetColumns, u)];
+      const skin = new Map<boolean, SkinDonor>();
+      for (const above of [false, true]) {
+        const boundary = above ? Math.max(...bounds) : Math.min(...bounds);
+        const sign = above ? 1 : -1;
+        const near = sampleSkin(u, boundary + sign * 0.025);
+        const far = sampleSkin(u, boundary + sign * 0.065);
+        if (near && far) skin.set(above, { near, far, boundary });
+      }
+      columnCache.set(id, { source, skin });
+    }
+    // Smooth donors along the brow so shadows vary continuously rather than
+    // forming independent vertical strips in the reconstructed skin.
+    const smoothed = new Map<number, PreviewColumn>();
+    const radius = Math.max(2, Math.round(brow.length * 0.07));
+    for (const [id, column] of columnCache) {
+      const skin = new Map<boolean, SkinDonor>();
+      for (const [above, donor] of column.skin) {
+        const near = [0, 0, 0],
+          far = [0, 0, 0];
+        let weight = 0;
+        for (let offset = -radius; offset <= radius; offset++) {
+          const neighbor = columnCache.get(id + offset)?.skin.get(above);
+          if (!neighbor) continue;
+          const w = 1 - Math.abs(offset) / (radius + 1);
+          for (let c = 0; c < 3; c++) {
+            near[c] += neighbor.near[c] * w;
+            far[c] += neighbor.far[c] * w;
+          }
+          weight += w;
+        }
+        skin.set(above, {
+          near: near.map((v) => v / weight),
+          far: far.map((v) => v / weight),
+          boundary: donor.boundary,
+        });
+      }
+      smoothed.set(id, { ...column, skin });
+    }
+    const protection = 0.25;
+    const feather = Math.max(1.5, brow.length * 0.014);
     const minY = Math.max(
       0,
       Math.ceil(Math.min(...brow.sourcePolygon.map((p) => p.y))),
@@ -84,8 +159,10 @@ export function applyStylePreview(
     );
     for (let y = minY; y <= maxY; y++) {
       const source = rowSpans(brow.sourcePolygon, y);
-      const protectedRows = brows.flatMap((b) =>
-        [-1, 0, 1].map((offset) => rowSpans(b.polygon, y + offset)),
+      const protectedRows = brows.map((b) => rowSpans(b.polygon, y));
+      const nearby = Math.ceil(protection + feather);
+      const nearbyRows = brows.flatMap((b) =>
+        [-nearby, nearby].map((offset) => rowSpans(b.polygon, y + offset)),
       );
       for (let span = 0; span < source.length; span += 2) {
         const start = Math.max(0, Math.ceil(source[span])),
@@ -94,34 +171,25 @@ export function applyStylePreview(
           if (protectedRows.some((row) => inSpans(x, row, protection)))
             continue;
           const local = toBrowLocal({ x, y }, brow);
-          const sourceColumn = rowSpans(sourceColumns, local.x);
-          if (!sourceColumn.length) continue;
-          const bounds = [...sourceColumn, ...rowSpans(targetColumns, local.x)];
+          const columnId = Math.round(local.x * brow.length);
+          const column = smoothed.get(columnId);
+          if (!column) continue;
+          const sourceColumn = column.source;
           const above =
             local.y >
             (sourceColumn[0] + sourceColumn[sourceColumn.length - 1]) / 2;
-          const boundary = above ? Math.max(...bounds) : Math.min(...bounds);
-          const samples: number[][] = [];
-          for (const offset of [0.045, 0.075, 0.105]) {
-            const p = fromBrowLocal(
-              {
-                x: local.x,
-                y:
-                  boundary +
-                  (above ? offset : -offset) +
-                  (local.y - boundary) * 0.2,
-              },
-              brow,
-            );
-            const sx = Math.round(p.x),
-              sy = Math.round(p.y);
-            if (sx < 0 || sx >= width || sy < 0 || sy >= height) continue;
-            const i = (sy * width + sx) * 4;
-            samples.push([original[i], original[i + 1], original[i + 2]]);
-          }
-          if (samples.length < 3) continue;
-          samples.sort((a, b) => luminance(a) - luminance(b));
-          const skin = samples[1];
+          const donor = column.skin.get(above);
+          if (!donor) continue;
+          // Continue the local skin shading into the removed hair instead of
+          // copying a bright strip from farther down the eyelid or forehead.
+          const extrapolation = Math.min(
+            4,
+            (Math.abs(local.y - donor.boundary) + 0.025) / 0.04,
+          );
+          const skin = donor.near.map(
+            (value, c) =>
+              value - clamp((donor.far[c] - value) * extrapolation, 0, 18),
+          );
           const i = (y * width + x) * 4;
           const darkness =
             luminance(skin) -
@@ -129,18 +197,20 @@ export function applyStylePreview(
           const edge = Math.min(
             x - source[span],
             source[span + 1] - x,
-            y - minY,
-            maxY - y,
+            (local.y - sourceColumn[0]) * brow.length,
+            (sourceColumn[sourceColumn.length - 1] - local.y) * brow.length,
           );
-          if (darkness <= 20) continue;
-          const clearance = Math.min(
-            ...brows.map((b) => polygonDistance({ x, y }, b.polygon)),
-          );
+          if (darkness <= 12) continue;
+          const clearance = [...protectedRows, ...nearbyRows].some((row) =>
+            inSpans(x, row, nearby),
+          )
+            ? Math.min(...brows.map((b) => polygonDistance({ x, y }, b.polygon)))
+            : protection + feather;
           const blend =
-            clamp((darkness - 20) / 38, 0, 1) *
-            clamp(edge / feather, 0, 1) *
+            clamp((darkness - 12) / 26, 0, 1) *
+            clamp(edge / Math.max(2, brow.length * 0.065), 0, 1) *
             clamp((clearance - protection) / feather, 0, 1) *
-            0.9;
+            0.95;
           if (blend <= 0) continue;
           for (let c = 0; c < 3; c++)
             data[i + c] = original[i + c] * (1 - blend) + skin[c] * blend;

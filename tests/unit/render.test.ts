@@ -101,6 +101,61 @@ describe("automatic virtual trim", () => {
     expect(red).toBeGreaterThan(65);
     expect(red).toBeLessThanOrEqual(105);
   });
+  it("fades edits at a sloped natural-brow edge instead of ending in a cutout line", () => {
+    const image = imageFixture();
+    const sloped = {
+      ...brow,
+      sourcePolygon: [
+        { x: 20, y: 38 },
+        { x: 120, y: 38 },
+        { x: 120, y: 80 },
+        { x: 20, y: 64 },
+      ],
+    };
+    for (let y = 56; y < 80; y++)
+      for (let x = 30; x < 110; x++)
+        if (pointInPolygon({ x, y }, sloped.sourcePolygon))
+          image.data.set([25, 20, 15, 255], (y * image.width + x) * 4);
+    const before = new Uint8ClampedArray(image.data);
+    applyStylePreview(image, [sloped]);
+    const change = (y: number) => {
+      const i = (y * image.width + 60) * 4;
+      return image.data[i] - before[i];
+    };
+    expect(change(60)).toBeGreaterThan(70);
+    expect(change(70)).toBeLessThan(35);
+    expect(change(71)).toBe(0);
+  });
+  it("continues the local skin shadow instead of copying a bright band across dark hair", () => {
+    const image = imageFixture();
+    for (let y = 69; y < image.height; y++)
+      for (let x = 30; x < 130; x++) {
+        const red = 110 + (y - 69) * 2;
+        image.data.set([red, red - 25, red - 40, 255], (y * image.width + x) * 4);
+      }
+    applyStylePreview(image, [brow]);
+    const red = image.data[(60 * image.width + 60) * 4];
+    expect(red).toBeGreaterThan(75);
+    expect(red).toBeLessThan(110);
+  });
+  it("preserves both protected outlines with fractional and rotated borders", () => {
+    const image = imageFixture();
+    const tilted = {
+      ...brow,
+      polygon: brow.polygon.map((p) => ({ x: p.x + 0.3, y: p.y + p.x * 0.023 })),
+    };
+    const other = { ...brow, side: "right" as const,
+      polygon: [{ x: 56.1, y: 58.2 }, { x: 61.3, y: 57.8 }, { x: 63.7, y: 64.6 }],
+    };
+    const before = new Uint8ClampedArray(image.data);
+    applyStylePreview(image, [tilted, other]);
+    for (let y = 0; y < image.height; y++)
+      for (let x = 0; x < image.width; x++)
+        if (isProtected({ x, y }, [tilted, other])) {
+          const i = (y * image.width + x) * 4;
+          expect(image.data.slice(i, i + 4)).toEqual(before.slice(i, i + 4));
+        }
+  });
   it("pauses without changing the frame when a dark obstruction crosses beneath the brow", () => {
     const image = imageFixture();
     for (let y = 69; y < 90; y++)

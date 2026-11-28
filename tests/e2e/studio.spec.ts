@@ -305,6 +305,57 @@ test("runs the real vision worker, compares synchronized live frames, drags by p
   expect(errors).toEqual([]);
 });
 
+test("automatically trims an additional camera frame while preserving both protected brows and eye areas", async ({ page }) => {
+  test.skip(
+    !process.env.BROW_TEST_PREVIEW,
+    "Supply BROW_TEST_PREVIEW to replay a local camera frame without portrait-specific manual touch-ups.",
+  );
+  const data = await readFile(process.env.BROW_TEST_PREVIEW!);
+  await streamFixture(page, "data:image/png;base64," + data.toString("base64"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Enable camera" }).click();
+  await expect(page.locator(".tracking-status")).toHaveText("Face tracking active", { timeout: 45000 });
+  await page.getByRole("button", { name: /Soft Arch/ }).click();
+  await page.getByRole("button", { name: "View proposed result" }).click();
+  await expect(page.getByText("Virtual preview · estimate", { exact: true })).toBeVisible();
+  await expect(page.locator(".review-instruction")).not.toBeVisible();
+  const result = await page.getByTestId("proposed-canvas").evaluate((canvas: HTMLCanvasElement) => {
+    const raw = document.createElement("canvas");
+    raw.width = canvas.width;
+    raw.height = canvas.height;
+    const ctx = raw.getContext("2d")!;
+    ctx.drawImage(document.querySelector<HTMLVideoElement>(".camera-source")!, 0, 0, raw.width, raw.height);
+    const before = ctx.getImageData(0, 0, raw.width, raw.height).data;
+    const after = canvas.getContext("2d")!.getImageData(0, 0, raw.width, raw.height).data;
+    const changes: Point[] = [];
+    for (let y = 100; y < raw.height; y++)
+      for (let x = 0; x < raw.width; x++) {
+        const i = (y * raw.width + x) * 4;
+        if ([0, 1, 2].some(c => before[i + c] !== after[i + c])) changes.push({ x, y });
+      }
+    return { changes, width: raw.width, height: raw.height,
+      face: (window as unknown as { fixtureFace: Point[] }).fixtureFace };
+  });
+  const brows = makeBrows(result.face, "soft-arch", defaultCalibration(), result.width, result.height);
+  const eyes = [[362, 263], [133, 33]].map(ids => {
+    const points = ids.map(id => result.face[id]);
+    return {
+      left: Math.min(...points.map(p => p.x)) * result.width,
+      right: Math.max(...points.map(p => p.x)) * result.width,
+      top: (Math.min(...points.map(p => p.y)) - 0.025) * result.height,
+      bottom: (Math.max(...points.map(p => p.y)) + 0.035) * result.height,
+    };
+  });
+  expect(result.changes.length).toBeGreaterThan(20);
+  for (const point of result.changes) {
+    expect(isProtected(point, brows)).toBe(false);
+    expect(brows.some(brow => polygonDistance(point, brow.sourcePolygon) < 2)).toBe(true);
+    expect(eyes.some(eye => point.x >= eye.left && point.x <= eye.right && point.y >= eye.top && point.y <= eye.bottom)).toBe(false);
+  }
+  await page.screenshot({ path: `/tmp/brow-studio-camera-regression-${test.info().project.name}.png`, fullPage: true });
+  await page.getByRole("button", { name: "Stop camera" }).click();
+});
+
 test("automatically previews real eyebrow pixels, protects the outline, supports reviewed touch-ups, and pauses on lighting loss", async ({
   page,
 }) => {
